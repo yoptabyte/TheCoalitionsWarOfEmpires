@@ -1,0 +1,7 @@
+[package]
+name = "the_coalitions_war_of_empires"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.13"
