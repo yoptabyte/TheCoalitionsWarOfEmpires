@@ -1,10 +1,11 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*};
 use bevy::gizmos::gizmos::Gizmos;
 use bevy_hanabi::prelude::*;
 
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_mod_picking::picking_core::PickSet;
+use bevy_mod_picking::backends::raycast::RaycastPickable;
 
 /// Marker for the controllable cube.
 #[derive(Component)]
@@ -18,13 +19,24 @@ struct Selectable;
 #[derive(Component)]
 struct Highlighted;
 
+/// Маркер для земли, чтобы отличать её от других объектов
+#[derive(Component)]
+struct Ground;
+
+/// Marker for the selected entity to visually highlight it
+#[derive(Component)]
+struct Selected;
+
 /// Resource to store the selected entity.
 #[derive(Resource, Default)]
 struct SelectedEntity(Option<Entity>);
 
-/// Resource to store the object clicked flag.
+/// Resource to store click circle information for gizmos
 #[derive(Resource, Default)]
-struct WasObjectClicked(bool);
+struct ClickCircle {
+    position: Option<Vec3>,
+    spawn_time: Option<f32>,
+}
 
 /// Component to store individual movement order for an entity.
 #[derive(Component)]
@@ -34,13 +46,6 @@ struct MovementOrder(Vec3);
 #[derive(Resource)]
 struct ClickEffectHandle(Handle<EffectAsset>);
 
-// Resource to store click circle information for gizmos
-#[derive(Resource, Default)]
-struct ClickCircle {
-    position: Option<Vec3>,
-    spawn_time: Option<f32>,
-}
-
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -48,15 +53,16 @@ fn main() {
         .add_plugins(DefaultPickingPlugins)
         .init_resource::<ClickCircle>()
         .init_resource::<SelectedEntity>()
-        .init_resource::<WasObjectClicked>()
         .add_systems(Startup, (setup, setup_particle_effect))
         .add_systems(Update, (
             apply_highlight,
-            handle_ground_clicks.after(PickSet::Last),
+            update_selected_entities,
             process_movement_orders,
             draw_click_circle,
+            draw_movement_lines,
+            select_entity_system.after(PickSet::Last),
+            handle_ground_clicks.after(select_entity_system),
         ))
-        .add_systems(Last, reset_click_flag)
         .run();
 }
 
@@ -66,10 +72,10 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Cube
+    let cube_mesh = meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)));
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
+            mesh: cube_mesh.clone(),
             material: materials.add(Color::rgb(0.8, 0.7, 0.6)),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
@@ -77,32 +83,37 @@ fn setup(
         ControllableCube,
         Selectable,
         PickableBundle::default(),
+        RaycastPickable::default(),
         On::<Pointer<Over>>::run(handle_pointer_over),
         On::<Pointer<Out>>::run(handle_pointer_out),
-        On::<Pointer<Click>>::run(select_entity_system),
     ));
 
-    // Sphere
+    let sphere_mesh = meshes.add(Mesh::from(Sphere::new(0.5)));
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
+            mesh: sphere_mesh.clone(),
             material: materials.add(Color::rgb(0.2, 0.4, 0.8)),
             transform: Transform::from_xyz(2.0, 0.5, 0.0),
             ..default()
         },
         Selectable,
         PickableBundle::default(),
+        RaycastPickable::default(),
         On::<Pointer<Over>>::run(handle_pointer_over),
         On::<Pointer<Out>>::run(handle_pointer_out),
-        On::<Pointer<Click>>::run(select_entity_system),
     ));
 
-    // Plane (ground)
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Plane3d::default().mesh().size(25.0, 25.0)),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
-        ..default()
-    });
+    let plane_mesh = meshes.add(Plane3d::default().mesh().size(25.0, 25.0));
+    commands.spawn((
+        PbrBundle {
+            mesh: plane_mesh.clone(),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+            ..default()
+        },
+        PickableBundle::default(),
+        RaycastPickable::default(),
+        Ground,
+    ));
 
     // Light
     commands.spawn(PointLightBundle {
@@ -207,14 +218,21 @@ fn draw_click_circle(
 }
 
 fn select_entity_system(
-    event: Listener<Pointer<Click>>,
+    mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
-    mut object_clicked_flag: ResMut<WasObjectClicked>,
-    mut click_circle: ResMut<ClickCircle>,
+    query_selectable: Query<(), With<Selectable>>,
 ) {
-    selected_entity.0 = Some(event.target);
-    object_clicked_flag.0 = true;
-    click_circle.position = None;
+    for event in click_events.read() {
+        if query_selectable.get(event.target).is_ok() {
+            info!("select_entity_system: clicked on selectable {:?}, previously selected: {:?}", event.target, selected_entity.0);
+            
+            if selected_entity.0 != Some(event.target) {
+                selected_entity.0 = Some(event.target);
+            }
+            
+            return;
+        }
+    }
 }
 
 fn handle_pointer_over(
@@ -231,9 +249,26 @@ fn handle_pointer_out(
      commands.entity(listener.target).remove::<Highlighted>();
 }
 
+fn update_selected_entities(
+    selected_entity: Res<SelectedEntity>,
+    mut commands: Commands,
+    selectable_entities: Query<Entity, With<Selectable>>,
+) {
+    if selected_entity.is_changed() {
+        for entity in selectable_entities.iter() {
+            commands.entity(entity).remove::<Selected>();
+        }
+        
+        if let Some(entity) = selected_entity.0 {
+            commands.entity(entity).insert(Selected);
+        }
+    }
+}
+
 fn apply_highlight(
     highlighted_query: Query<(Entity, &Handle<StandardMaterial>), (With<Highlighted>, With<Selectable>)>,
-    mut unhighlighted_query: Query<(Entity, &Handle<StandardMaterial>), (Without<Highlighted>, With<Selectable>)>,
+    selected_query: Query<(Entity, &Handle<StandardMaterial>), (With<Selected>, With<Selectable>)>,
+    mut other_query: Query<(Entity, &Handle<StandardMaterial>), (Without<Highlighted>, Without<Selected>, With<Selectable>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (_entity, material_handle) in highlighted_query.iter() {
@@ -241,8 +276,14 @@ fn apply_highlight(
             material.emissive = Color::YELLOW * 2.0;
         }
     }
+    
+    for (_entity, material_handle) in selected_query.iter() {
+        if let Some(material) = materials.get_mut(material_handle) {
+            material.emissive = Color::GREEN * 3.0;
+        }
+    }
 
-    for (_entity, material_handle) in unhighlighted_query.iter_mut() {
+    for (_entity, material_handle) in other_query.iter_mut() {
          if let Some(material) = materials.get_mut(material_handle) {
              if material.emissive != Color::BLACK {
                  material.emissive = Color::BLACK;
@@ -253,65 +294,54 @@ fn apply_highlight(
 
 fn handle_ground_clicks(
     mut commands: Commands,
-    mouse_buttons: Res<ButtonInput<MouseButton>>,
-    window_query: Query<&Window, With<PrimaryWindow>>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut click_events: EventReader<Pointer<Click>>,
+    query_selectable: Query<(), With<Selectable>>,
+    query_ground: Query<(), With<Ground>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
-    object_clicked_flag: Res<WasObjectClicked>,
     selected_entity_res: Res<SelectedEntity>,
 ) {
-    if mouse_buttons.just_pressed(MouseButton::Left) && !object_clicked_flag.0 {
-        if selected_entity_res.0.is_none() { 
-            click_circle.position = None; 
-            return;
+    let mut clicked_on_selectable = false;
+    let mut clicked_on_ground = false;
+    let mut ground_click_position: Option<Vec3> = None;
+    
+    for event in click_events.read() {
+        if query_selectable.get(event.target).is_ok() {
+            clicked_on_selectable = true;
+            info!("handle_ground_clicks: clicked on selectable {:?}", event.target);
         }
-
-        let Ok(primary_window) = window_query.get_single() else { return };
-        let Some(cursor_position) = primary_window.cursor_position() else { return };
-        let Ok((camera, camera_transform)) = camera_query.get_single() else { return };
-
-        let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return };
-
-        let plane_normal = Vec3::Y;
-        let plane_origin = Vec3::ZERO;
-
-        let denominator = ray.direction.dot(plane_normal);
-        if denominator.abs() > 1e-6 {
-            let t = (plane_origin - ray.origin).dot(plane_normal) / denominator;
-            if t >= 0.0 {
-                 let target_point = ray.origin + ray.direction * t;
-
-                 if let Some(entity_to_move) = selected_entity_res.0 {
-                     commands.entity(entity_to_move).insert(MovementOrder(target_point));
-                 }
-
-                 click_circle.position = Some(target_point);
-                 click_circle.spawn_time = Some(time.elapsed_seconds());
-
-                 commands.spawn((
-                     Name::new("click_particles"),
-                     ParticleEffectBundle {
-                         effect: ParticleEffect::new(click_effect_handle.0.clone()),
-                         transform: Transform::from_translation(target_point),
-                         ..default()
-                     },
-                 ));
-            } else {
-                 click_circle.position = None;
+        
+        if query_ground.get(event.target).is_ok() {
+            clicked_on_ground = true;
+            if let Some(position) = event.hit.position {
+                ground_click_position = Some(position);
+                info!("handle_ground_clicks: clicked on ground {:?}", position);
             }
-        } else {
-            click_circle.position = None;
         }
     }
+    
+    if !clicked_on_selectable && clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
+        let target_point = ground_click_position.unwrap();
+        
+        if let Some(entity_to_move) = selected_entity_res.0 {
+            info!("handle_ground_clicks: giving movement order to {:?} to point {:?}", entity_to_move, target_point);
+            commands.entity(entity_to_move).insert(MovementOrder(target_point));
+        }
+        
+        click_circle.position = Some(target_point);
+        click_circle.spawn_time = Some(time.elapsed_seconds());
+            Name::new("click_particles"),
+            ParticleEffectBundle {
+                effect: ParticleEffect::new(click_effect_handle.0.clone()),
+                transform: Transform::from_translation(target_point),
+                ..default()
+            },
+        ));
+    } else if clicked_on_selectable {
+        click_circle.position = None;
+    }
 }
-
-
-fn reset_click_flag(mut object_clicked_flag: ResMut<WasObjectClicked>) {
-    object_clicked_flag.0 = false;
-}
-
 
 fn process_movement_orders(
     mut commands: Commands,
@@ -324,17 +354,54 @@ fn process_movement_orders(
         let direction = target - transform.translation;
 
         if direction.length_squared() > 0.01 { 
+            
             let movement_this_frame = direction.normalize() * speed * time.delta_seconds();
+            let xz_direction = Vec3::new(direction.x, 0.0, direction.z).normalize();
+            
+            if xz_direction.length_squared() > 0.001 {
+                let target_rotation = Quat::from_rotation_arc(Vec3::Z, xz_direction);
+                transform.rotation = transform.rotation.slerp(target_rotation, 0.2);
+            }
 
             if movement_this_frame.length_squared() >= direction.length_squared() {
                 transform.translation = target; 
                 commands.entity(entity).remove::<MovementOrder>(); 
+                info!("process_movement_orders: object {:?} reached destination", entity);
             } else {
                 transform.translation += movement_this_frame;
             }
         } else {
             transform.translation = target; 
             commands.entity(entity).remove::<MovementOrder>();
+            info!("process_movement_orders: object {:?} reached destination (close)", entity);
         }
+    }
+}
+
+fn draw_movement_lines(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &MovementOrder), With<Selectable>>,
+) {
+    for (transform, movement_order) in query.iter() {
+        let start = transform.translation;
+        let end = movement_order.0;
+        
+        gizmos.line(
+            start, 
+            end, 
+            Color::BLUE
+        );
+        
+        let direction = (end - start).normalize();
+        let arrow_length = 0.3;
+        let arrow_angle = 0.6; 
+        
+        let perpendicular = Vec3::new(-direction.z, 0.0, direction.x).normalize();
+        
+        let arrow_left = end - direction * arrow_length + perpendicular * arrow_length * arrow_angle;
+        let arrow_right = end - direction * arrow_length - perpendicular * arrow_length * arrow_angle;
+        
+        gizmos.line(end, arrow_left, Color::BLUE);
+        gizmos.line(end, arrow_right, Color::BLUE);
     }
 }
