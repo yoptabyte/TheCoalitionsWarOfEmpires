@@ -1,6 +1,7 @@
-use bevy::{prelude::*};
+use bevy::{prelude::*, input::mouse::MouseWheel};
 use bevy::gizmos::gizmos::Gizmos;
 use bevy_hanabi::prelude::*;
+use bevy::input::mouse::MouseMotion;
 
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
@@ -19,9 +20,13 @@ struct Selectable;
 #[derive(Component)]
 struct HoveredOutline;
 
-/// Маркер для земли, чтобы отличать её от других объектов
+/// Marker for the ground to distinguish it from other objects
 #[derive(Component)]
 struct Ground;
+
+/// Marker for the main camera
+#[derive(Component)]
+struct MainCamera;
 
 /// Resource to store the selected entity.
 #[derive(Resource, Default)]
@@ -42,11 +47,51 @@ struct MovementOrder(Vec3);
 #[derive(Resource)]
 struct ClickEffectHandle(Handle<EffectAsset>);
 
-/// Компонент для хранения типа формы объекта
+/// Component to store the shape type of an object
 #[derive(Component)]
 enum ShapeType {
     Cube,
     Sphere,
+}
+
+/// Resource to store camera settings
+#[derive(Resource)]
+struct CameraSettings {
+    zoom_level: f32,
+    min_zoom: f32,
+    max_zoom: f32,
+    zoom_speed: f32,
+}
+
+/// Resource to store camera movement state
+#[derive(Resource)]
+struct CameraMovementState {
+    is_right_button_pressed: bool,
+    last_mouse_position: Option<Vec2>,
+    movement_speed: f32,
+    manual_camera_mode: bool,
+}
+
+impl Default for CameraSettings {
+    fn default() -> Self {
+        Self {
+            zoom_level: 1.0,
+            min_zoom: 0.5,  // Minimum zoom (maximum zoom in)
+            max_zoom: 10.0,  // Maximum zoom (maximum zoom out)
+            zoom_speed: 0.1, // Zoom change speed
+        }
+    }
+}
+
+impl Default for CameraMovementState {
+    fn default() -> Self {
+        Self {
+            is_right_button_pressed: false,
+            last_mouse_position: None,
+            movement_speed: 0.02, // Скорость движения камеры при использовании правой кнопки мыши
+            manual_camera_mode: false,
+        }
+    }
 }
 
 fn main() {
@@ -55,13 +100,15 @@ fn main() {
         .add_plugins(HanabiPlugin)
         .add_plugins(
             DefaultPickingPlugins
-                // Отключаем плагины, которые могут менять цвета при наведении и выборе
+                // Disable plugins that can change colors on hover and selection
                 .build()
                 .disable::<DefaultHighlightingPlugin>()
                 .disable::<DebugPickingPlugin>()
         )
         .init_resource::<ClickCircle>()
         .init_resource::<SelectedEntity>()
+        .init_resource::<CameraSettings>()
+        .init_resource::<CameraMovementState>()
         .add_systems(Startup, (setup, setup_particle_effect))
         .add_systems(Update, (
             process_movement_orders,
@@ -70,6 +117,9 @@ fn main() {
             select_entity_system.after(PickSet::Last),
             handle_ground_clicks.after(select_entity_system),
             draw_hover_outline,
+            camera_zoom_system,
+            camera_right_button_movement,
+            camera_follow_selected.after(camera_zoom_system),
         ))
         .run();
 }
@@ -149,6 +199,7 @@ fn setup(
             transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
+        MainCamera,
     ));
 }
 
@@ -209,7 +260,7 @@ fn setup_particle_effect(
 /// System to draw a fading circle gizmo at the last click position.
 const CIRCLE_LIFETIME: f32 = 0.5; // How long the circle lasts in seconds
 const CIRCLE_COLOR: Color = Color::YELLOW; // Matches particle start color
-const CIRCLE_FINAL_RADIUS: f32 = 0.2; // The final radius the circle expands to
+const CIRCLE_FINAL_RADIUS: f32 = 1.0; // The final radius the circle expands to
 
 fn draw_click_circle(
     mut gizmos: Gizmos,
@@ -239,14 +290,19 @@ fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
     query_selectable: Query<(), With<Selectable>>,
+    mut camera_movement_state: ResMut<CameraMovementState>,
 ) {
     for event in click_events.read() {
+        if event.button != PointerButton::Primary {
+            continue;
+        }
+        
         if query_selectable.get(event.target).is_ok() {
-            info!("select_entity_system: Кликнули на выбираемый объект {:?}, ранее выбранный: {:?}", event.target, selected_entity.0);
+            info!("select_entity_system: Clicked on selectable object {:?}, previously selected: {:?}", event.target, selected_entity.0);
             
-            // Обновляем выбранный объект только если он изменился
             if selected_entity.0 != Some(event.target) {
                 selected_entity.0 = Some(event.target);
+                camera_movement_state.manual_camera_mode = false;
             }
             
             return;
@@ -269,6 +325,11 @@ fn handle_ground_clicks(
     let mut ground_click_position: Option<Vec3> = None;
     
     for event in click_events.read() {
+        // Обрабатываем только клики левой кнопкой мыши
+        if event.button != PointerButton::Primary {
+            continue;
+        }
+        
         if query_selectable.get(event.target).is_ok() {
             clicked_on_selectable = true;
             info!("handle_ground_clicks: clicked on selectable {:?}", event.target);
@@ -287,7 +348,7 @@ fn handle_ground_clicks(
         let target_point = ground_click_position.unwrap();
         
         if let Some(entity_to_move) = selected_entity_res.0 {
-            info!("handle_ground_clicks: Отдаем приказ на движение для {:?} к точке {:?}", entity_to_move, target_point);
+            info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
             commands.entity(entity_to_move).insert(MovementOrder(target_point));
         }
         
@@ -330,14 +391,14 @@ fn process_movement_orders(
             if movement_this_frame.length_squared() >= direction.length_squared() {
                 transform.translation = target; 
                 commands.entity(entity).remove::<MovementOrder>(); 
-                info!("process_movement_orders: Объект {:?} достиг цели", entity);
+                info!("process_movement_orders: Object {:?} reached goal", entity);
             } else {
                 transform.translation += movement_this_frame;
             }
         } else {
             transform.translation = target; 
             commands.entity(entity).remove::<MovementOrder>();
-            info!("process_movement_orders: Объект {:?} достиг цели (close)", entity);
+            info!("process_movement_orders: Object {:?} reached goal (close)", entity);
         }
     }
 }
@@ -379,7 +440,7 @@ fn draw_hover_outline(
     for (transform, shape_type, mesh_handle) in hovered_entities_query.iter() {
         match shape_type {
             ShapeType::Cube => {
-                // Отрисовка обводки для куба с использованием AABB
+                // Drawing the outline for the cube using AABB
                 if let Some(mesh_handle) = mesh_handle {
                     if let Some(mesh) = meshes.get(mesh_handle) {
                         if let Some(aabb) = mesh.compute_aabb() {
@@ -421,18 +482,135 @@ fn draw_hover_outline(
                 }
             },
             ShapeType::Sphere => {
-                // Рисуем сферическую обводку для сферы
-                let radius = 0.5; // Радиус сферы
+                // Draw a spherical outline for the sphere
+                let radius = 0.5; // Sphere radius
                 let world_position = transform.translation;
                 
-                // Рисуем три окружности в ортогональных плоскостях для создания эффекта сферы
-                // Окружность в плоскости XZ (нормаль Y)
+                // Draw three circles in orthogonal planes to create a sphere effect
+                // Circle in the XZ plane (Y normal)
                 gizmos.circle(world_position, Direction3d::Y, radius, Color::YELLOW);
-                // Окружность в плоскости XY (нормаль Z)
+                // Circle in the XY plane (Z normal)
                 gizmos.circle(world_position, Direction3d::Z, radius, Color::YELLOW);
-                // Окружность в плоскости YZ (нормаль X)
+                // Circle in the YZ plane (X normal)
                 gizmos.circle(world_position, Direction3d::X, radius, Color::YELLOW);
             }
+        }
+    }
+}
+
+/// System for handling mouse scroll and changing camera zoom
+fn camera_zoom_system(
+    mut mouse_wheel_events: EventReader<MouseWheel>,
+    mut camera_settings: ResMut<CameraSettings>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    selected_entity_res: Res<SelectedEntity>,
+    transform_query: Query<&Transform, Without<MainCamera>>,
+    camera_movement_state: Res<CameraMovementState>,
+) {
+    let mut zoom_delta = 0.0;
+    
+    for event in mouse_wheel_events.read() {
+        zoom_delta += event.y;
+    }
+    
+    if zoom_delta != 0.0 {
+        // Change zoom level based on scroll and zoom speed
+        camera_settings.zoom_level -= zoom_delta * camera_settings.zoom_speed;
+        
+        // Clamp zoom between minimum and maximum values
+        camera_settings.zoom_level = camera_settings.zoom_level
+            .clamp(camera_settings.min_zoom, camera_settings.max_zoom);
+        
+        //manual camera mode
+        if camera_movement_state.manual_camera_mode || camera_movement_state.is_right_button_pressed {
+            if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+                let forward = camera_transform.forward();
+                let look_target = camera_transform.translation + forward * 10.0;
+                
+                let zoom_movement = forward * zoom_delta * camera_settings.zoom_speed * 5.0;
+                camera_transform.translation += zoom_movement;
+                
+                camera_transform.look_at(look_target, Vec3::Y);
+            }
+        }
+    }
+}
+
+/// System for updating camera position to follow the selected object
+fn camera_follow_selected(
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    selected_entity_res: Res<SelectedEntity>,
+    transform_query: Query<&Transform, Without<MainCamera>>,
+    camera_settings: Res<CameraSettings>,
+    camera_movement_state: Res<CameraMovementState>,
+) {
+    if camera_movement_state.is_right_button_pressed || camera_movement_state.manual_camera_mode {
+        return;
+    }
+    
+    if let Some(selected_entity) = selected_entity_res.0 {
+        if let Ok(selected_transform) = transform_query.get(selected_entity) {
+            if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+                // Base camera offset
+                let base_offset = Vec3::new(-2.5, 4.5, 4.0);
+                
+                // Apply scaling to offset based on zoom level
+                let scaled_offset = base_offset * camera_settings.zoom_level;
+                
+                // Set camera position with offset
+                camera_transform.translation = selected_transform.translation + scaled_offset;
+                
+                // Point camera at the selected object
+                camera_transform.look_at(selected_transform.translation, Vec3::Y);
+            }
+        }
+    }
+}
+
+/// System for controlling the camera with the right mouse button
+fn camera_right_button_movement(
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+    mut motion_events: EventReader<MouseMotion>,
+    mut camera_movement_state: ResMut<CameraMovementState>,
+    time: Res<Time>,
+) {
+    if mouse_buttons.just_pressed(MouseButton::Right) {
+        camera_movement_state.is_right_button_pressed = true;
+        camera_movement_state.last_mouse_position = None;
+    } else if mouse_buttons.just_released(MouseButton::Right) {
+        camera_movement_state.is_right_button_pressed = false;
+        camera_movement_state.last_mouse_position = None;
+        //manual camera mode
+        camera_movement_state.manual_camera_mode = true;
+    }
+
+    if camera_movement_state.is_right_button_pressed {
+        let mut camera_transform = if let Ok(transform) = camera_query.get_single_mut() {
+            transform
+        } else {
+            return;
+        };
+        
+        let mut movement = Vec2::ZERO;
+        for event in motion_events.read() {
+            movement += event.delta;
+        }
+        
+        if movement != Vec2::ZERO {
+            // Get the right direction relative to the camera
+            let right = camera_transform.right();
+            let up = Vec3::Y;
+            let forward = camera_transform.forward().reject_from(up).normalize();
+            
+            // Move the camera according to mouse movement, using the custom speed
+            camera_transform.translation -= right * movement.x * camera_movement_state.movement_speed;
+            camera_transform.translation += forward * movement.y * camera_movement_state.movement_speed;
+            
+            // Save the camera's forward direction
+            let look_dir = camera_transform.forward();
+            let target = camera_transform.translation + look_dir * 10.0;
+            camera_transform.look_at(target, Vec3::Y);
         }
     }
 }
