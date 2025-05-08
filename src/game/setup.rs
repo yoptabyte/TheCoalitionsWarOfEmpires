@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
-use crate::game::{ControllableCube, Selectable, Ground, MainCamera, HoveredOutline, ShapeType};
+use crate::game::{ControllableCube, Selectable, Ground, MainCamera, HoveredOutline, ShapeType, Health, Enemy, CanShoot};
 
 /// setup initial scene.
 pub fn setup(
@@ -20,6 +20,13 @@ pub fn setup(
         Selectable,
         PickableBundle::default(),
         ShapeType::Cube,
+        Health { current: 100.0, max: 100.0 },
+        CanShoot {
+            cooldown: 1.0,
+            last_shot: 0.0,
+            range: 10.0,
+            damage: 20.0,
+        },
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -39,6 +46,58 @@ pub fn setup(
         Selectable,
         PickableBundle::default(),
         ShapeType::Sphere,
+        Health { current: 100.0, max: 100.0 },
+        CanShoot {
+            cooldown: 1.5,
+            last_shot: 0.0,
+            range: 8.0,
+            damage: 15.0,
+        },
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
+    ));
+
+    // enemy objects
+    // enemy 1 - red cube
+    commands.spawn((
+        PbrBundle {
+            mesh: cube_mesh.clone(),
+            material: materials.add(Color::rgb(0.9, 0.2, 0.2)),
+            transform: Transform::from_xyz(-4.0, 0.5, 3.0),
+            ..default()
+        },
+        Enemy,
+        Selectable,
+        PickableBundle::default(),
+        ShapeType::Cube,
+        Health { current: 80.0, max: 80.0 },
+        Name::new("EnemyCube"),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
+    ));
+
+    // enemy 2 - red sphere
+    commands.spawn((
+        PbrBundle {
+            mesh: sphere_mesh.clone(),
+            material: materials.add(Color::rgb(0.9, 0.2, 0.2)),
+            transform: Transform::from_xyz(4.0, 0.5, 3.0),
+            ..default()
+        },
+        Enemy,
+        Selectable,
+        PickableBundle::default(),
+        ShapeType::Sphere,
+        Health { current: 60.0, max: 60.0 },
+        Name::new("EnemySphere"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),

@@ -3,13 +3,13 @@ use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy};
 
 /// system for selecting an entity
 pub fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
-    query_selectable: Query<(), With<Selectable>>,
+    query_selectable: Query<(), (With<Selectable>, Without<Enemy>)>,
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
 ) {
     for event in click_events.read() {
@@ -36,6 +36,7 @@ pub fn handle_ground_clicks(
     mut click_events: EventReader<Pointer<Click>>,
     query_selectable: Query<(), With<Selectable>>,
     query_ground: Query<(), With<Ground>>,
+    query_enemy: Query<(), With<Enemy>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
@@ -69,21 +70,25 @@ pub fn handle_ground_clicks(
         let target_point = ground_click_position.unwrap();
         
         if let Some(entity_to_move) = selected_entity_res.0 {
-            info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
-            commands.entity(entity_to_move).insert(MovementOrder(target_point));
+            if query_enemy.get(entity_to_move).is_err() {
+                info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
+                commands.entity(entity_to_move).insert(MovementOrder(target_point));
+                
+                click_circle.position = Some(target_point);
+                click_circle.spawn_time = Some(time.elapsed_seconds());
+                
+                commands.spawn((
+                    Name::new("click_particles"),
+                    ParticleEffectBundle {
+                        effect: ParticleEffect::new(click_effect_handle.0.clone()),
+                        transform: Transform::from_translation(target_point),
+                        ..default()
+                    },
+                ));
+            } else {
+                info!("handle_ground_clicks: Can't move enemy object");
+            }
         }
-        
-        click_circle.position = Some(target_point);
-        click_circle.spawn_time = Some(time.elapsed_seconds());
-        
-        commands.spawn((
-            Name::new("click_particles"),
-            ParticleEffectBundle {
-                effect: ParticleEffect::new(click_effect_handle.0.clone()),
-                transform: Transform::from_translation(target_point),
-                ..default()
-            },
-        ));
     } else if clicked_on_selectable {
         click_circle.position = None;
     }

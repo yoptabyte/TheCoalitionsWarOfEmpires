@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy::gizmos::gizmos::Gizmos;
-use crate::game::{ClickCircle, MovementOrder, Selectable, HoveredOutline, ShapeType};
+use crate::game::{ClickCircle, MovementOrder, Selectable, HoveredOutline, ShapeType, Health};
 
 /// constants for the click circle
 pub const CIRCLE_LIFETIME: f32 = 0.5; // how long the circle exists in seconds
@@ -122,6 +122,47 @@ pub fn draw_hover_outline(
                 gizmos.circle(world_position, Direction3d::X, radius, Color::YELLOW);
                 // circle in the XZ plane (normal Y)
                 gizmos.circle(world_position, Direction3d::Y, radius, Color::YELLOW);
+            }
+        }
+    }
+}
+
+/// system for displaying health bars above objects
+pub fn draw_health_bars(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &Health), With<Health>>,
+    _camera_query: Query<(&Transform, &Camera), With<Camera>>,
+) {
+    for (transform, health) in query.iter() {
+        if health.max > 0.0 {
+            let position = transform.translation + Vec3::new(0.0, 1.2, 0.0);
+            
+            let health_ratio = health.current / health.max;
+            let bar_width = 1.0;
+            let filled_width = bar_width * health_ratio;
+            
+            // background of the health bar
+            gizmos.line(
+                position + Vec3::new(-bar_width/2.0, 0.0, 0.0),
+                position + Vec3::new(bar_width/2.0, 0.0, 0.0),
+                Color::DARK_GRAY,
+            );
+            
+            let health_color = if health_ratio > 0.7 {
+                Color::GREEN
+            } else if health_ratio > 0.3 {
+                Color::YELLOW
+            } else {
+                Color::RED
+            };
+            
+            // fill the health bar
+            if health_ratio > 0.0 {
+                gizmos.line(
+                    position + Vec3::new(-bar_width/2.0, 0.0, 0.0),
+                    position + Vec3::new(-bar_width/2.0 + filled_width, 0.0, 0.0),
+                    health_color,
+                );
             }
         }
     }

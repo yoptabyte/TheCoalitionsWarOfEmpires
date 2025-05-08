@@ -30,3 +30,31 @@ pub enum ShapeType {
     Cube,
     Sphere,
 }
+
+/// marker for enemies
+#[derive(Component)]
+pub struct Enemy;
+
+/// health component for objects
+#[derive(Component)]
+pub struct Health {
+    pub current: f32,
+    pub max: f32,
+}
+
+/// component for managing shooting
+#[derive(Component)]
+pub struct Projectile {
+    pub target: Entity,
+    pub speed: f32,
+    pub damage: f32,
+}
+
+/// component for indicating the ability to shoot
+#[derive(Component)]
+pub struct CanShoot {
+    pub cooldown: f32,
+    pub last_shot: f32,
+    pub range: f32,
+    pub damage: f32,
+}
