@@ -20,6 +20,10 @@ use systems::*;
 use utils::*;
 use ui::*;
 
+/// Маркер для UI камеры, чтобы можно было ее удалить при переходе в игру
+#[derive(Component)]
+struct UICamera;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -60,7 +64,7 @@ fn main() {
 }
 
 fn setup_ui_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn((Camera2dBundle::default(), UICamera));
 }
 
 mod game_plugin {

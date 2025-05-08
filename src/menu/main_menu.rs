@@ -173,8 +173,8 @@ pub fn menu_action(
                     app_exit_events.send(AppExit);
                 }
                 MenuButtonAction::Play => {
-                    game_state.set(GameState::Game);
                     menu_state.set(MenuState::Disabled);
+                    game_state.set(GameState::Game);
                 }
                 MenuButtonAction::Settings => menu_state.set(MenuState::Settings),
                 MenuButtonAction::SettingsDisplay => {
