@@ -69,7 +69,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|parent| {
             parent.spawn((
                 TextBundle::from_section(
-                    "Bevy Game Menu UI",
+                    "The Coalitions - War of Empires",
                     TextStyle {
                         font_size: 67.0,
                         color: TEXT_COLOR,
@@ -194,6 +194,5 @@ pub fn menu_action(
 
 pub fn main_menu_plugin(app: &mut App) {
     app
-        .add_systems(OnEnter(MenuState::Main), main_menu_setup)
-        .add_systems(OnExit(MenuState::Main), despawn_screen::<OnMainMenuScreen>);
+        .add_systems(OnEnter(MenuState::Main), main_menu_setup);
 } 

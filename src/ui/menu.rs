@@ -18,7 +18,11 @@ pub fn menu_plugin(app: &mut App) {
             Update,
             (menu_action, button_system).run_if(in_state(GameState::Menu)),
         )
-        .add_systems(OnEnter(GameState::Game), cleanup_all_menu_ui);
+        .add_systems(OnEnter(GameState::Game), cleanup_all_menu_ui)
+        .add_systems(OnExit(MenuState::Main), despawn_screen::<OnMainMenuScreen>)
+        .add_systems(OnExit(MenuState::Settings), despawn_screen::<OnSettingsMenuScreen>)
+        .add_systems(OnExit(MenuState::SettingsDisplay), despawn_screen::<OnDisplaySettingsMenuScreen>)
+        .add_systems(OnExit(MenuState::SettingsSound), despawn_screen::<OnSoundSettingsMenuScreen>);
 }
 
 fn cleanup_all_menu_ui(

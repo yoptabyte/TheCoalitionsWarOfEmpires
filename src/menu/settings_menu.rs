@@ -328,23 +328,14 @@ pub fn sound_settings_menu_setup(mut commands: Commands, volume: Res<Volume>) {
 pub fn settings_menu_plugin(app: &mut App) {
     app
         .add_systems(OnEnter(MenuState::Settings), settings_menu_setup)
-        .add_systems(OnExit(MenuState::Settings), despawn_screen::<OnSettingsMenuScreen>)
         .add_systems(OnEnter(MenuState::SettingsDisplay), display_settings_menu_setup)
         .add_systems(
             Update,
-            setting_button::<DisplayQuality>.run_if(in_state(MenuState::SettingsDisplay)),
-        )
-        .add_systems(
-            OnExit(MenuState::SettingsDisplay),
-            despawn_screen::<OnDisplaySettingsMenuScreen>,
+            setting_button::<DisplayQuality>.run_if(in_state(MenuState::SettingsDisplay))
         )
         .add_systems(OnEnter(MenuState::SettingsSound), sound_settings_menu_setup)
         .add_systems(
             Update,
-            setting_button::<Volume>.run_if(in_state(MenuState::SettingsSound)),
-        )
-        .add_systems(
-            OnExit(MenuState::SettingsSound),
-            despawn_screen::<OnSoundSettingsMenuScreen>,
+            setting_button::<Volume>.run_if(in_state(MenuState::SettingsSound))
         );
 } 
