@@ -6,3 +6,6 @@ pub use menu::*;
 
 pub mod splash;
 pub use splash::*;
+
+pub mod money_ui;
+pub use money_ui::*;

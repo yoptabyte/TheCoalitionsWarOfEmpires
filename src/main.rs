@@ -59,7 +59,7 @@ fn main() {
                 camera_follow_selected.after(camera_zoom_system),
             ).run_if(in_state(GameState::Game))
         )
-        .add_plugins((splash_plugin, menu_plugin, game::game_plugin))
+        .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin))
         .run();
 }
 
