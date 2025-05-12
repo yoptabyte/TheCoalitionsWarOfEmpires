@@ -59,7 +59,7 @@ fn main() {
                 camera_follow_selected.after(camera_zoom_system),
             ).run_if(in_state(GameState::Game))
         )
-        .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin))
+        .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))
         .run();
 }
 
@@ -67,14 +67,14 @@ fn setup_ui_camera(mut commands: Commands) {
     commands.spawn((Camera2dBundle::default(), UICamera));
 }
 
-mod game_plugin {
+pub mod game_plugin {
     use bevy::prelude::*;
     use crate::{
         menu::common::{GameState, DisplayQuality, Volume, despawn_screen},
     };
 
     #[derive(Component)]
-    struct OnGameScreen;
+    pub struct OnGameScreen;
 
     #[derive(Resource, Deref, DerefMut)]
     struct GameTimer(Timer);

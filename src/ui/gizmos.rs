@@ -60,70 +60,32 @@ pub fn draw_movement_lines(
     }
 }
 
-/// system for drawing a yellow outline around objects under the cursor.
+/// system for drawing a yellow square on the ground under objects under the cursor.
 pub fn draw_hover_outline(
     mut gizmos: Gizmos,
-    hovered_entities_query: Query<(&Transform, &ShapeType, Option<&Handle<Mesh>>), (With<HoveredOutline>, With<Selectable>)>,
-    meshes: Res<Assets<Mesh>>,
+    hovered_entities_query: Query<(&Transform, &ShapeType), (With<HoveredOutline>, With<Selectable>)>,
 ) {
-    for (transform, shape_type, mesh_handle) in hovered_entities_query.iter() {
-        match shape_type {
-            ShapeType::Cube => {
-                // drawing the outline for the cube using the AABB
-                if let Some(mesh_handle) = mesh_handle {
-                    if let Some(mesh) = meshes.get(mesh_handle) {
-                        if let Some(aabb) = mesh.compute_aabb() {
-                            // getting the corners of the AABB in the local space
-                            let min = aabb.min();
-                            let max = aabb.max();
-                            let corners = [
-                                Vec3::new(min.x, min.y, min.z),
-                                Vec3::new(max.x, min.y, min.z),
-                                Vec3::new(max.x, max.y, min.z),
-                                Vec3::new(min.x, max.y, min.z),
-                                Vec3::new(min.x, min.y, max.z),
-                                Vec3::new(max.x, min.y, max.z),
-                                Vec3::new(max.x, max.y, max.z),
-                                Vec3::new(min.x, max.y, max.z),
-                            ];
-
-                            // transforming the corners to the world space
-                            let world_corners: Vec<Vec3> = corners
-                                .iter()
-                                .map(|&corner| transform.transform_point(corner))
-                                .collect();
-
-                            // defining the edges of the cube based on the corners
-                            let edges = [
-                                (world_corners[0], world_corners[1]), (world_corners[1], world_corners[2]),
-                                (world_corners[2], world_corners[3]), (world_corners[3], world_corners[0]),
-                                (world_corners[4], world_corners[5]), (world_corners[5], world_corners[6]),
-                                (world_corners[6], world_corners[7]), (world_corners[7], world_corners[4]),
-                                (world_corners[0], world_corners[4]), (world_corners[1], world_corners[5]),
-                                (world_corners[2], world_corners[6]), (world_corners[3], world_corners[7]),
-                            ];
-
-                            for (start, end) in edges.iter() {
-                                gizmos.line(*start, *end, Color::YELLOW);
-                            }
-                        }
-                    }
-                }
-            },
-            ShapeType::Sphere => {
-                // drawing the spherical outline for the sphere
-                let radius = 0.5; // sphere radius
-                let world_position = transform.translation;
-                
-                // drawing three circles in orthogonal planes to create the sphere effect
-                // circle in the XY plane (normal Z)
-                gizmos.circle(world_position, Direction3d::Z, radius, Color::YELLOW);
-                // circle in the YZ plane (normal X)
-                gizmos.circle(world_position, Direction3d::X, radius, Color::YELLOW);
-                // circle in the XZ plane (normal Y)
-                gizmos.circle(world_position, Direction3d::Y, radius, Color::YELLOW);
-            }
-        }
+    for (transform, shape_type) in hovered_entities_query.iter() {
+        let world_position = transform.translation;
+        let size = match shape_type {
+            ShapeType::Cube => 1.0, // cube size
+            ShapeType::Sphere => 1.0, // sphere diameter
+        };
+        
+        // Draw a square on the ground
+        let half_size = size / 2.0;
+        let corners = [
+            Vec3::new(world_position.x - half_size, 0.01, world_position.z - half_size),
+            Vec3::new(world_position.x + half_size, 0.01, world_position.z - half_size),
+            Vec3::new(world_position.x + half_size, 0.01, world_position.z + half_size),
+            Vec3::new(world_position.x - half_size, 0.01, world_position.z + half_size),
+        ];
+        
+        // Draw the square
+        gizmos.line(corners[0], corners[1], Color::YELLOW);
+        gizmos.line(corners[1], corners[2], Color::YELLOW);
+        gizmos.line(corners[2], corners[3], Color::YELLOW);
+        gizmos.line(corners[3], corners[0], Color::YELLOW);
     }
 }
 

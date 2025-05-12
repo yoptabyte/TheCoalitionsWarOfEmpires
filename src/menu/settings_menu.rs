@@ -1,7 +1,4 @@
-use bevy::{
-    prelude::*,
-};
-
+use bevy::prelude::*;
 use super::common::*;
 
 const CRIMSON: Color = Color::rgb(0.86, 0.08, 0.24);

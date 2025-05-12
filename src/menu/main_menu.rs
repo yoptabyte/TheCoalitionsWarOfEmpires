@@ -50,6 +50,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
+            background_color: Color::rgb(0.1, 0.1, 0.1).into(),
             ..default()
         },
         OnMainMenuScreen,
@@ -194,5 +195,6 @@ pub fn menu_action(
 
 pub fn main_menu_plugin(app: &mut App) {
     app
-        .add_systems(OnEnter(MenuState::Main), main_menu_setup);
+        .add_systems(OnEnter(MenuState::Main), main_menu_setup)
+        .add_systems(OnEnter(GameState::Menu), main_menu_setup);
 } 
