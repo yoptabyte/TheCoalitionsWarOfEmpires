@@ -29,6 +29,7 @@ pub struct MovementOrder(pub Vec3);
 pub enum ShapeType {
     Cube,
     Sphere,
+    Airplane,
 }
 
 /// marker for enemies
@@ -57,4 +58,11 @@ pub struct CanShoot {
     pub last_shot: f32,
     pub range: f32,
     pub damage: f32,
+}
+
+/// marker for aircraft
+#[derive(Component)]
+pub struct Aircraft {
+    pub height: f32,
+    pub speed: f32,
 }

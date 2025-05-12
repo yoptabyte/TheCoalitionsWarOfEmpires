@@ -64,12 +64,17 @@ pub fn draw_movement_lines(
 pub fn draw_hover_outline(
     mut gizmos: Gizmos,
     hovered_entities_query: Query<(&Transform, &ShapeType), (With<HoveredOutline>, With<Selectable>)>,
+    selected_entity: Res<crate::game::SelectedEntity>,
+    transform_query: Query<&Transform>,
+    shape_type_query: Query<&ShapeType>,
 ) {
+    // Draw outline for hovered entities
     for (transform, shape_type) in hovered_entities_query.iter() {
         let world_position = transform.translation;
         let size = match shape_type {
             ShapeType::Cube => 1.0, // cube size
             ShapeType::Sphere => 1.0, // sphere diameter
+            ShapeType::Airplane => 4.0, // airplane length
         };
         
         // Draw a square on the ground
@@ -86,6 +91,33 @@ pub fn draw_hover_outline(
         gizmos.line(corners[1], corners[2], Color::YELLOW);
         gizmos.line(corners[2], corners[3], Color::YELLOW);
         gizmos.line(corners[3], corners[0], Color::YELLOW);
+    }
+    
+    // Draw outline for selected entity
+    if let Some(entity) = selected_entity.0 {
+        if let (Ok(transform), Ok(shape_type)) = (transform_query.get(entity), shape_type_query.get(entity)) {
+            let world_position = transform.translation;
+            let size = match shape_type {
+                ShapeType::Cube => 1.0,
+                ShapeType::Sphere => 1.0,
+                ShapeType::Airplane => 4.0,
+            };
+            
+            // Draw a square on the ground with a different color
+            let half_size = size / 2.0;
+            let corners = [
+                Vec3::new(world_position.x - half_size, 0.01, world_position.z - half_size),
+                Vec3::new(world_position.x + half_size, 0.01, world_position.z - half_size),
+                Vec3::new(world_position.x + half_size, 0.01, world_position.z + half_size),
+                Vec3::new(world_position.x - half_size, 0.01, world_position.z + half_size),
+            ];
+            
+            // Draw the square with a green color for selected entity
+            gizmos.line(corners[0], corners[1], Color::GREEN);
+            gizmos.line(corners[1], corners[2], Color::GREEN);
+            gizmos.line(corners[2], corners[3], Color::GREEN);
+            gizmos.line(corners[3], corners[0], Color::GREEN);
+        }
     }
 }
 

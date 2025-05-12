@@ -1,4 +1,7 @@
-pub mod movement;
 pub mod combat;
-pub use movement::*;
+pub mod movement;
+pub mod aircraft;
+
 pub use combat::*;
+pub use movement::*;
+pub use aircraft::*;

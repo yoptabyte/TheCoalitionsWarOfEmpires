@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
-use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline};
+use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline, CanShoot};
 
 /// setup initial scene.
 pub fn setup(
@@ -25,6 +25,12 @@ pub fn setup(
         PickableBundle::default(),
         ShapeType::Cube,
         Health { current: 80.0, max: 80.0 },
+        CanShoot {
+            cooldown: 1.2,
+            last_shot: 0.0,
+            range: 8.0,
+            damage: 12.0,
+        },
         Name::new("EnemyCube"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
@@ -47,6 +53,12 @@ pub fn setup(
         PickableBundle::default(),
         ShapeType::Sphere,
         Health { current: 60.0, max: 60.0 },
+        CanShoot {
+            cooldown: 0.8,
+            last_shot: 0.0,
+            range: 12.0,
+            damage: 8.0,
+        },
         Name::new("EnemySphere"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);

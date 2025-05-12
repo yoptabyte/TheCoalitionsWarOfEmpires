@@ -19,6 +19,7 @@ pub struct UICamera;
 pub enum PurchasableItem {
     Cube,
     Sphere,
+    Airplane,
 }
 
 impl PurchasableItem {
@@ -26,6 +27,7 @@ impl PurchasableItem {
         match self {
             PurchasableItem::Cube => 3,
             PurchasableItem::Sphere => 2,
+            PurchasableItem::Airplane => 5,
         }
     }
 
@@ -33,6 +35,7 @@ impl PurchasableItem {
         match self {
             PurchasableItem::Cube => ShapeType::Cube,
             PurchasableItem::Sphere => ShapeType::Sphere,
+            PurchasableItem::Airplane => ShapeType::Airplane,
         }
     }
 }
@@ -44,6 +47,8 @@ pub struct MoneyText;
 pub struct SpawnCubeButton;
 #[derive(Component)]
 pub struct SpawnSphereButton;
+#[derive(Component)]
+pub struct SpawnAirplaneButton;
 #[derive(Component)]
 pub struct ExitButton;
 
@@ -137,6 +142,29 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             ));
         });
+        // Spawn airplane button
+        parent.spawn((
+            ButtonBundle {
+                style: Style {
+                    width: Val::Px(180.0),
+                    height: Val::Px(40.0),
+                    margin: UiRect::all(Val::Px(5.0)),
+                    ..default()
+                },
+                background_color: Color::rgb(0.7, 0.7, 0.7).into(),
+                ..default()
+            },
+            SpawnAirplaneButton,
+        )).with_children(|b| {
+            b.spawn(TextBundle::from_section(
+                format!("Spawn airplane (-{})", PurchasableItem::Airplane.cost()),
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 24.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
 
         // Exit button
         parent.spawn((
@@ -173,7 +201,7 @@ fn update_money_text(money: Res<Money>, mut query: Query<&mut Text, With<MoneyTe
     }
 }
 
-// Handle button presses for spawning cube/sphere
+// Handle button presses for spawning cube/sphere/airplane
 fn handle_spawn_buttons(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -184,19 +212,22 @@ fn handle_spawn_buttons(
             &mut BackgroundColor,
             Entity,
             Option<&SpawnCubeButton>,
-            Option<&SpawnSphereButton>
+            Option<&SpawnSphereButton>,
+            Option<&SpawnAirplaneButton>
         ),
-        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>)>)
+        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>, With<SpawnAirplaneButton>)>)
     >,
     mut money: ResMut<Money>,
 ) {
-    for (interaction, mut color, entity, is_cube, is_sphere) in &mut interaction_query {
+    for (interaction, mut color, entity, is_cube, is_sphere, is_airplane) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
                     PurchasableItem::Cube
                 } else if is_sphere.is_some() {
                     PurchasableItem::Sphere
+                } else if is_airplane.is_some() {
+                    PurchasableItem::Airplane
                 } else {
                     continue;
                 };
@@ -213,8 +244,10 @@ fn handle_spawn_buttons(
             Interaction::None => {
                 if is_cube.is_some() {
                     *color = Color::DARK_GREEN.into();
-                } else {
+                } else if is_sphere.is_some() {
                     *color = BUTTON_BLUE.into();
+                } else {
+                    *color = Color::rgb(0.7, 0.7, 0.7).into();
                 }
             }
         }
@@ -249,6 +282,7 @@ fn handle_confirm_dialog(
     mut interaction_query: Query<(&Interaction, &ConfirmDialogAction), (Changed<Interaction>, With<ConfirmDialogAction>)>,
     mut game_state: ResMut<NextState<GameState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
+    mut money: ResMut<Money>,
     dialog_query: Query<Entity, With<ConfirmDialog>>,
 ) {
     for (interaction, action) in &mut interaction_query {
@@ -259,6 +293,9 @@ fn handle_confirm_dialog(
                     if let Ok(dialog) = dialog_query.get_single() {
                         commands.entity(dialog).despawn_recursive();
                     }
+                    
+                    // Reset money to initial value
+                    money.0 = 10;
                     
                     // Then set states in the correct order
                     menu_state.set(MenuState::Main);
@@ -284,6 +321,8 @@ fn cleanup_game_entities(
     ground_query: Query<Entity, With<crate::game::Ground>>,
     camera_query: Query<Entity, With<crate::game::MainCamera>>,
     ui_camera_query: Query<Entity, With<UICamera>>,
+    light_query: Query<Entity, With<PointLight>>,
+    directional_light_query: Query<Entity, With<DirectionalLight>>,
 ) {
     // Despawn all game entities (shapes)
     for entity in game_entities.iter() {
@@ -315,6 +354,16 @@ fn cleanup_game_entities(
         commands.entity(entity).despawn_recursive();
     }
 
+    // Despawn all point lights
+    for entity in light_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+
+    // Despawn all directional lights (including sun)
+    for entity in directional_light_query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+
     // Spawn new UI camera for menu
     commands.spawn((Camera2dBundle::default(), UICamera));
 }
@@ -325,54 +374,95 @@ fn spawn_shape(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     shape_type: ShapeType,
 ) {
-    let mesh = match shape_type {
-        ShapeType::Cube => meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 1.0))),
-        ShapeType::Sphere => meshes.add(Mesh::from(shape::UVSphere {
-            radius: 0.5,
-            sectors: 32,
-            stacks: 16,
-        })),
-    };
-
-    let material = materials.add(StandardMaterial {
-        base_color: match shape_type {
-            ShapeType::Cube => Color::GREEN,
-            ShapeType::Sphere => Color::BLUE,
-        },
-        ..default()
-    });
-
-    // Different shooting parameters for cubes and spheres
-    let (cooldown, range, damage) = match shape_type {
-        ShapeType::Cube => (1.0, 10.0, 25.0), // Cube: slower but stronger
-        ShapeType::Sphere => (0.7, 8.0, 15.0), // Sphere: faster but weaker
-    };
-
-    commands.spawn((
-        PbrBundle {
-            mesh,
-            material,
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..default()
-        },
-        shape_type,
-        crate::game::Selectable,
-        crate::game::Health {
-            current: 100.0,
-            max: 100.0,
-        },
-        crate::game::CanShoot {
-            cooldown,
-            last_shot: 0.0,
-            range,
-            damage,
-        },
-        bevy_mod_picking::prelude::PickableBundle::default(),
-        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
-            commands.entity(event.target).insert(crate::game::HoveredOutline);
-        }),
-        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
-            commands.entity(event.target).remove::<crate::game::HoveredOutline>();
-        }),
-    ));
+    match shape_type {
+        ShapeType::Cube => {
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 1.0))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.8, 0.7, 0.6),
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 0.5, 0.0),
+                    ..default()
+                },
+                shape_type,
+                crate::game::components::Selectable,
+                crate::game::components::HoveredOutline,
+                crate::game::components::MovementOrder(Vec3::ZERO),
+                crate::game::components::Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 1.0,
+                    last_shot: 0.0,
+                    range: 10.0,
+                    damage: 10.0,
+                },
+            ));
+        }
+        ShapeType::Sphere => {
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::UVSphere {
+                        radius: 0.5,
+                        sectors: 32,
+                        stacks: 16,
+                    })),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.2, 0.5, 0.8),
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 0.5, 0.0),
+                    ..default()
+                },
+                shape_type,
+                crate::game::components::Selectable,
+                crate::game::components::HoveredOutline,
+                crate::game::components::MovementOrder(Vec3::ZERO),
+                crate::game::components::Health {
+                    current: 50.0,
+                    max: 50.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 0.7,
+                    last_shot: 0.0,
+                    range: 15.0,
+                    damage: 8.0,
+                },
+            ));
+        }
+        ShapeType::Airplane => {
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Box::new(2.0, 0.5, 4.0))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.8, 0.8, 0.8),
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 10.0, 0.0),
+                    ..default()
+                },
+                shape_type,
+                crate::game::components::Selectable,
+                crate::game::components::HoveredOutline,
+                crate::game::components::MovementOrder(Vec3::ZERO),
+                crate::game::components::Aircraft {
+                    height: 10.0,
+                    speed: 5.0,
+                },
+                crate::game::components::Health {
+                    current: 75.0,
+                    max: 75.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 0.5,
+                    last_shot: 0.0,
+                    range: 20.0,
+                    damage: 15.0,
+                },
+            ));
+        }
+    }
 } 

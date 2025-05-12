@@ -57,6 +57,7 @@ fn main() {
                 camera_zoom_system,
                 camera_right_button_movement.after(camera_zoom_system),
                 camera_follow_selected.after(camera_zoom_system),
+                aircraft_movement,
             ).run_if(in_state(GameState::Game))
         )
         .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))
@@ -71,6 +72,7 @@ pub mod game_plugin {
     use bevy::prelude::*;
     use crate::{
         menu::common::{GameState, DisplayQuality, Volume, despawn_screen},
+        systems::aircraft::spawn_initial_aircraft,
     };
 
     #[derive(Component)]
@@ -80,7 +82,7 @@ pub mod game_plugin {
     struct GameTimer(Timer);
 
     pub fn game_plugin(app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), game_setup)
+        app.add_systems(OnEnter(GameState::Game), (game_setup, spawn_initial_aircraft))
             .add_systems(Update, game_system.run_if(in_state(GameState::Game)))
             .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
     }
