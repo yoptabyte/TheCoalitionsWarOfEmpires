@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
-use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline, CanShoot};
+use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline, CanShoot, Tower, EnemyTower};
 
 /// setup initial scene.
 pub fn setup(
@@ -68,6 +68,14 @@ pub fn setup(
         }),
     ));
 
+    // Tower - spawn a tower with high HP
+    spawn_tower(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        Vec3::new(0.0, 0.0, -5.0),
+    );
+
     let plane_mesh = meshes.add(Plane3d::default().mesh().size(25.0, 25.0));
     commands.spawn((
         PbrBundle {
@@ -96,5 +104,35 @@ pub fn setup(
             ..default()
         },
         MainCamera,
+    ));
+}
+
+/// Create a tower at the specified position
+pub fn spawn_tower(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    position: Vec3,
+) {
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(1.5, 6.0, 1.5))),
+            material: materials.add(Color::rgb(0.9, 0.2, 0.2)),
+            transform: Transform::from_translation(position + Vec3::new(0.0, 3.0, 0.0)),
+            ..default()
+        },
+        Tower { height: 6.0 },
+        Selectable,
+        PickableBundle::default(),
+        ShapeType::Tower,
+        EnemyTower,
+        Health { current: 500.0, max: 500.0 },
+        Name::new("Tower"),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
     ));
 }

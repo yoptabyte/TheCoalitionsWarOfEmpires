@@ -1,16 +1,17 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot};
+use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, Tower, EnemyTower};
 
-/// system for processing clicks on enemy objects and creating a shot
-pub fn handle_enemy_clicks(
+/// system for processing clicks on attackable objects (enemies or towers) and creating a shot
+pub fn handle_attacks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut click_events: EventReader<Pointer<Click>>,
     selected_entity: Res<SelectedEntity>,
     query_enemy: Query<Entity, With<Enemy>>,
+    query_enemy_tower: Query<Entity, With<EnemyTower>>,
     transform_query: Query<&Transform>,
     can_shoot_query: Query<&CanShoot>,
     time: Res<Time>,
@@ -20,12 +21,28 @@ pub fn handle_enemy_clicks(
             continue;
         }
         
-        if query_enemy.get(event.target).is_ok() {
+        let is_enemy = query_enemy.get(event.target).is_ok();
+        let is_enemy_tower = query_enemy_tower.get(event.target).is_ok();
+        
+        info!("handle_attacks: Click detected on entity {:?}, is_enemy: {}, is_enemy_tower: {}", 
+              event.target, is_enemy, is_enemy_tower);
+        
+        let is_valid_target = is_enemy || is_enemy_tower;
+        
+        if is_valid_target {
+            info!("handle_attacks: Valid target detected: {:?}", event.target);
+            
             if let Some(shooter_entity) = selected_entity.0 {
+                info!("handle_attacks: Selected shooter entity: {:?}", shooter_entity);
+                
                 if let Ok(can_shoot) = can_shoot_query.get(shooter_entity) {
+                    info!("handle_attacks: Shooter has CanShoot component with range: {}", can_shoot.range);
+                    
                     let current_time = time.elapsed_seconds();
                     
                     if current_time - can_shoot.last_shot >= can_shoot.cooldown {
+                        info!("handle_attacks: Cooldown check passed, attempting to shoot");
+                        
                         if let (Ok(shooter_transform), Ok(target_transform)) = (
                             transform_query.get(shooter_entity),
                             transform_query.get(event.target)
@@ -34,8 +51,11 @@ pub fn handle_enemy_clicks(
                             let target_pos = target_transform.translation;
                             
                             let distance = (target_pos - shooter_pos).length();
+                            info!("handle_attacks: Distance to target: {}, range: {}", distance, can_shoot.range);
+                            
                             if distance <= can_shoot.range {
-                                info!("handle_enemy_clicks: Shooting at enemy {:?} from distance {}", event.target, distance);
+                                let target_type = if is_enemy { "enemy" } else { "tower" };
+                                info!("handle_attacks: Shooting at {} {:?} from distance {}", target_type, event.target, distance);
                                 
                                 let projectile_mesh = meshes.add(Mesh::from(Sphere::new(0.1)));
                                 commands.spawn((
@@ -60,11 +80,11 @@ pub fn handle_enemy_clicks(
                                     damage: can_shoot.damage,
                                 });
                             } else {
-                                info!("handle_enemy_clicks: Target out of range (distance: {}, range: {})", distance, can_shoot.range);
+                                info!("handle_attacks: Target out of range (distance: {}, range: {})", distance, can_shoot.range);
                             }
                         }
                     } else {
-                        info!("handle_enemy_clicks: Weapon on cooldown, remaining: {}", 
+                        info!("handle_attacks: Weapon on cooldown, remaining: {}", 
                               can_shoot.cooldown - (current_time - can_shoot.last_shot));
                     }
                 }
@@ -79,6 +99,8 @@ pub fn update_projectiles(
     mut projectile_query: Query<(Entity, &mut Transform, &Projectile)>,
     mut health_query: Query<&mut Health>,
     transform_query: Query<&Transform, Without<Projectile>>,
+    query_enemy: Query<(), With<Enemy>>,
+    query_enemy_tower: Query<(), With<EnemyTower>>,
     time: Res<Time>,
 ) {
     for (projectile_entity, mut projectile_transform, projectile) in projectile_query.iter_mut() {
@@ -89,14 +111,22 @@ pub fn update_projectiles(
             let direction = target_pos - current_pos;
             
             if direction.length_squared() < 0.1 {
+                let is_enemy = query_enemy.get(projectile.target).is_ok();
+                let is_enemy_tower = query_enemy_tower.get(projectile.target).is_ok();
+                let target_type = if is_enemy { "enemy" } else if is_enemy_tower { "tower" } else { "unknown" };
+                
+                info!("update_projectiles: Projectile hit target: {:?}, type: {}", projectile.target, target_type);
+                
                 if let Ok(mut health) = health_query.get_mut(projectile.target) {
                     health.current -= projectile.damage;
-                    info!("update_projectiles: Hit target, remaining health: {}/{}", health.current, health.max);
+                    info!("update_projectiles: Hit target {}, remaining health: {}/{}", target_type, health.current, health.max);
                     
                     if health.current <= 0.0 {
-                        info!("update_projectiles: Target destroyed!");
-                        commands.entity(projectile.target).despawn();
+                        info!("update_projectiles: Target {} destroyed!", target_type);
+                        commands.entity(projectile.target).despawn_recursive();
                     }
+                } else {
+                    info!("update_projectiles: Target has no Health component: {:?}", projectile.target);
                 }
                 
                 commands.entity(projectile_entity).despawn();
@@ -110,6 +140,7 @@ pub fn update_projectiles(
                 }
             }
         } else {
+            info!("update_projectiles: Target entity no longer exists: {:?}", projectile.target);
             commands.entity(projectile_entity).despawn();
         }
     }

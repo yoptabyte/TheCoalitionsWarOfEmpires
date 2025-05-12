@@ -11,7 +11,7 @@ mod systems;
 mod utils;
 mod ui;
 
-use menu::common::{GameState, DisplayQuality, Volume};
+use menu::common::{GameState, MenuState, DisplayQuality, Volume};
 use ui::menu::menu_plugin;
 use ui::splash::splash_plugin;
 use game::*;
@@ -50,7 +50,7 @@ fn main() {
                 draw_movement_lines,
                 select_entity_system.after(PickSet::Last),
                 handle_ground_clicks.after(select_entity_system),
-                handle_enemy_clicks.after(select_entity_system),
+                handle_attacks.after(select_entity_system),
                 update_projectiles,
                 draw_hover_outline,
                 draw_health_bars,
@@ -58,6 +58,9 @@ fn main() {
                 camera_right_button_movement.after(camera_zoom_system),
                 camera_follow_selected.after(camera_zoom_system),
                 aircraft_movement,
+                tower::repair_tower,
+                tower::update_tower_health_status,
+                tower::spawn_tower_on_keystroke,
             ).run_if(in_state(GameState::Game))
         )
         .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))

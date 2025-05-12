@@ -75,6 +75,7 @@ pub fn draw_hover_outline(
             ShapeType::Cube => 1.0, // cube size
             ShapeType::Sphere => 1.0, // sphere diameter
             ShapeType::Airplane => 4.0, // airplane length
+            ShapeType::Tower => 2.0, // tower base size
         };
         
         // Draw a square on the ground
@@ -101,6 +102,7 @@ pub fn draw_hover_outline(
                 ShapeType::Cube => 1.0,
                 ShapeType::Sphere => 1.0,
                 ShapeType::Airplane => 4.0,
+                ShapeType::Tower => 2.0,
             };
             
             // Draw a square on the ground with a different color
@@ -124,40 +126,43 @@ pub fn draw_hover_outline(
 /// system for displaying health bars above objects
 pub fn draw_health_bars(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &Health), With<Health>>,
+    query: Query<(&Transform, &Health)>,
     _camera_query: Query<(&Transform, &Camera), With<Camera>>,
 ) {
     for (transform, health) in query.iter() {
-        if health.max > 0.0 {
-            let position = transform.translation + Vec3::new(0.0, 1.2, 0.0);
-            
-            let health_ratio = health.current / health.max;
-            let bar_width = 1.0;
-            let filled_width = bar_width * health_ratio;
-            
-            // background of the health bar
+        if health.max <= 0.0 {
+            continue;
+        }
+        
+        // Определяем позицию для отрисовки
+        let position = transform.translation + Vec3::new(0.0, 1.5, 0.0);
+        
+        let health_ratio = health.current / health.max;
+        let bar_width = 1.0;
+        let filled_width = bar_width * health_ratio;
+        
+        // background of the health bar
+        gizmos.line(
+            position + Vec3::new(-bar_width/2.0, 0.0, 0.0),
+            position + Vec3::new(bar_width/2.0, 0.0, 0.0),
+            Color::DARK_GRAY,
+        );
+        
+        let health_color = if health_ratio > 0.7 {
+            Color::GREEN
+        } else if health_ratio > 0.3 {
+            Color::YELLOW
+        } else {
+            Color::RED
+        };
+        
+        // fill the health bar
+        if health_ratio > 0.0 {
             gizmos.line(
                 position + Vec3::new(-bar_width/2.0, 0.0, 0.0),
-                position + Vec3::new(bar_width/2.0, 0.0, 0.0),
-                Color::DARK_GRAY,
+                position + Vec3::new(-bar_width/2.0 + filled_width, 0.0, 0.0),
+                health_color,
             );
-            
-            let health_color = if health_ratio > 0.7 {
-                Color::GREEN
-            } else if health_ratio > 0.3 {
-                Color::YELLOW
-            } else {
-                Color::RED
-            };
-            
-            // fill the health bar
-            if health_ratio > 0.0 {
-                gizmos.line(
-                    position + Vec3::new(-bar_width/2.0, 0.0, 0.0),
-                    position + Vec3::new(-bar_width/2.0 + filled_width, 0.0, 0.0),
-                    health_color,
-                );
-            }
         }
     }
 }

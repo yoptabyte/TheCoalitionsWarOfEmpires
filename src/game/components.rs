@@ -30,11 +30,22 @@ pub enum ShapeType {
     Cube,
     Sphere,
     Airplane,
+    Tower,
 }
 
 /// marker for enemies
 #[derive(Component)]
 pub struct Enemy;
+
+/// marker for towers
+#[derive(Component)]
+pub struct Tower {
+    pub height: f32,
+}
+
+/// marker for enemy towers that can be attacked
+#[derive(Component)]
+pub struct EnemyTower;
 
 /// health component for objects
 #[derive(Component)]

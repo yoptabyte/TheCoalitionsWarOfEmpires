@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::ecs::system::Resource;
-use bevy_mod_picking::prelude::*;
 use crate::game::ShapeType;
 use crate::menu::common::{GameState, MenuState};
 use crate::ui::confirm_dialog::{ConfirmDialog, ConfirmDialogAction, spawn_confirm_dialog};
@@ -378,7 +377,7 @@ fn spawn_shape(
         ShapeType::Cube => {
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 1.0))),
+                    mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
                     material: materials.add(StandardMaterial {
                         base_color: Color::rgb(0.8, 0.7, 0.6),
                         ..default()
@@ -405,11 +404,7 @@ fn spawn_shape(
         ShapeType::Sphere => {
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::UVSphere {
-                        radius: 0.5,
-                        sectors: 32,
-                        stacks: 16,
-                    })),
+                    mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
                     material: materials.add(StandardMaterial {
                         base_color: Color::rgb(0.2, 0.5, 0.8),
                         ..default()
@@ -436,7 +431,7 @@ fn spawn_shape(
         ShapeType::Airplane => {
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Box::new(2.0, 0.5, 4.0))),
+                    mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 4.0))),
                     material: materials.add(StandardMaterial {
                         base_color: Color::rgb(0.8, 0.8, 0.8),
                         ..default()
@@ -461,6 +456,35 @@ fn spawn_shape(
                     last_shot: 0.0,
                     range: 20.0,
                     damage: 15.0,
+                },
+            ));
+        }
+        ShapeType::Tower => {
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(Cuboid::new(1.5, 3.0, 1.5))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.5, 0.5, 0.5),
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 1.5, 0.0),
+                    ..default()
+                },
+                shape_type,
+                crate::game::components::Selectable,
+                crate::game::components::HoveredOutline,
+                crate::game::components::Tower {
+                    height: 3.0,
+                },
+                crate::game::components::Health {
+                    current: 200.0,
+                    max: 200.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 2.0,
+                    last_shot: 0.0,
+                    range: 25.0,
+                    damage: 20.0,
                 },
             ));
         }
