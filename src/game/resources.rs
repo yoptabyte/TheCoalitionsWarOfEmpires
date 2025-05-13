@@ -34,6 +34,20 @@ pub struct CameraMovementState {
     pub manual_camera_mode: bool,
 }
 
+/// resource for timer to update farm income
+#[derive(Resource)]
+pub struct FarmIncomeTimer {
+    pub timer: Timer,
+}
+
+impl Default for FarmIncomeTimer {
+    fn default() -> Self {
+        Self {
+            timer: Timer::from_seconds(0.5, TimerMode::Repeating),
+        }
+    }
+}
+
 impl Default for CameraSettings {
     fn default() -> Self {
         Self {

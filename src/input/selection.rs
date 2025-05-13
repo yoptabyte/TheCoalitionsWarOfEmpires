@@ -5,7 +5,7 @@ use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm};
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
@@ -87,6 +87,7 @@ pub fn handle_ground_clicks(
     query_ground: Query<(), With<Ground>>,
     query_enemy: Query<(), With<Enemy>>,
     query_enemy_tower: Query<(), With<EnemyTower>>,
+    query_farm: Query<(), With<Farm>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
@@ -120,7 +121,10 @@ pub fn handle_ground_clicks(
         let target_point = ground_click_position.unwrap();
         
         if let Some(entity_to_move) = selected_entity_res.0 {
-            if query_enemy.get(entity_to_move).is_err() && query_enemy_tower.get(entity_to_move).is_err() {
+            // Проверяем, что объект не является фермой, врагом или башней
+            if query_enemy.get(entity_to_move).is_err() && 
+               query_enemy_tower.get(entity_to_move).is_err() && 
+               query_farm.get(entity_to_move).is_err() {
                 info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
                 commands.entity(entity_to_move).insert(MovementOrder(target_point));
                 
@@ -136,7 +140,13 @@ pub fn handle_ground_clicks(
                     },
                 ));
             } else {
-                let entity_type = if query_enemy.get(entity_to_move).is_ok() { "enemy" } else { "enemy tower" };
+                let entity_type = if query_enemy.get(entity_to_move).is_ok() { 
+                    "enemy" 
+                } else if query_enemy_tower.get(entity_to_move).is_ok() { 
+                    "enemy tower" 
+                } else { 
+                    "farm" 
+                };
                 info!("handle_ground_clicks: Can't move {} object", entity_type);
             }
         }

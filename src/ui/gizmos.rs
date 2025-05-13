@@ -76,6 +76,7 @@ pub fn draw_hover_outline(
             ShapeType::Sphere => 1.0, // sphere diameter
             ShapeType::Airplane => 4.0, // airplane length
             ShapeType::Tower => 2.0, // tower base size
+            ShapeType::Farm => 2.0, // farm size
         };
         
         // Draw a square on the ground
@@ -103,6 +104,7 @@ pub fn draw_hover_outline(
                 ShapeType::Sphere => 1.0,
                 ShapeType::Airplane => 4.0,
                 ShapeType::Tower => 2.0,
+                ShapeType::Farm => 2.0,
             };
             
             // Draw a square on the ground with a different color

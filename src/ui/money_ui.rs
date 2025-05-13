@@ -488,5 +488,13 @@ fn spawn_shape(
                 },
             ));
         }
+        ShapeType::Farm => {
+            crate::game::farm::spawn_forest_farm(
+                commands,
+                meshes,
+                materials,
+                Vec3::new(0.0, 0.0, 0.0),
+            );
+        }
     }
 } 

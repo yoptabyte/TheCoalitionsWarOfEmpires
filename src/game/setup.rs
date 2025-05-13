@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline, CanShoot, Tower, EnemyTower};
+use crate::game::farm::{spawn_inactive_forest_farm};
 
 /// setup initial scene.
 pub fn setup(
@@ -74,6 +75,15 @@ pub fn setup(
         &mut meshes,
         &mut materials,
         Vec3::new(0.0, 0.0, -5.0),
+    );
+    
+    // Forest Farm
+    info!("Creating initial inactive forest farm at position (-5.0, 0.0, -1.0)");
+    spawn_inactive_forest_farm(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        Vec3::new(-5.0, 0.0, -1.0),
     );
 
     let plane_mesh = meshes.add(Plane3d::default().mesh().size(25.0, 25.0));

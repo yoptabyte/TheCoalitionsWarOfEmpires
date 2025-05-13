@@ -31,6 +31,7 @@ pub enum ShapeType {
     Sphere,
     Airplane,
     Tower,
+    Farm,
 }
 
 /// marker for enemies
@@ -77,3 +78,19 @@ pub struct Aircraft {
     pub height: f32,
     pub speed: f32,
 }
+
+/// general marker for farm structures
+#[derive(Component)]
+pub struct Farm;
+
+/// marker for forest farm type
+#[derive(Component)]
+pub struct ForestFarm;
+
+/// component indicating if the farm is active
+#[derive(Component)]
+pub struct FarmActive(pub bool);
+
+/// component for farm income rate per second
+#[derive(Component)]
+pub struct FarmIncomeRate(pub f32);

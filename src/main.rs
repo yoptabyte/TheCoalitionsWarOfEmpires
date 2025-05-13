@@ -20,7 +20,7 @@ use systems::*;
 use utils::*;
 use ui::*;
 
-/// Маркер для UI камеры, чтобы можно было ее удалить при переходе в игру
+/// Marker for UI camera to allow removing it when transitioning to game
 #[derive(Component)]
 struct UICamera;
 
