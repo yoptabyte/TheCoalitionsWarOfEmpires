@@ -13,6 +13,10 @@ pub struct Money(pub f32);
 #[derive(Resource, Debug, Default)]
 pub struct Wood(pub f32);
 
+// Resource for player's iron
+#[derive(Resource, Debug, Default)]
+pub struct Iron(pub f32);
+
 // Marker component for UI camera
 #[derive(Component)]
 pub struct UICamera;
@@ -23,6 +27,7 @@ pub enum PurchasableItem {
     Tank,
     Sphere,
     Airplane,
+    Mine,
 }
 
 impl PurchasableItem {
@@ -31,6 +36,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 3.0,
             PurchasableItem::Sphere => 2.0,
             PurchasableItem::Airplane => 5.0,
+            PurchasableItem::Mine => 100.0,
         }
     }
     
@@ -39,6 +45,16 @@ impl PurchasableItem {
             PurchasableItem::Tank => 2.0,
             PurchasableItem::Sphere => 0.0,
             PurchasableItem::Airplane => 0.0,
+            PurchasableItem::Mine => 35.0,
+        }
+    }
+
+    pub fn iron_cost(&self) -> f32 {
+        match self {
+            PurchasableItem::Tank => 2.0,
+            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Airplane => 0.0,
+            PurchasableItem::Mine => 0.0,
         }
     }
 
@@ -47,6 +63,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => ShapeType::Cube,
             PurchasableItem::Sphere => ShapeType::Sphere,
             PurchasableItem::Airplane => ShapeType::Airplane,
+            PurchasableItem::Mine => ShapeType::Mine,
         }
     }
 }
@@ -57,11 +74,15 @@ pub struct MoneyText;
 #[derive(Component)]
 pub struct WoodText;
 #[derive(Component)]
+pub struct IronText;
+#[derive(Component)]
 pub struct SpawnCubeButton;
 #[derive(Component)]
 pub struct SpawnSphereButton;
 #[derive(Component)]
 pub struct SpawnAirplaneButton;
+#[derive(Component)]
+pub struct SpawnMineButton;
 #[derive(Component)]
 pub struct ExitButton;
 
@@ -72,14 +93,17 @@ impl Plugin for MoneyUiPlugin {
         app
             .init_resource::<Money>()
             .init_resource::<Wood>()
+            .init_resource::<Iron>()
             .insert_resource(Money(10.0))
             .insert_resource(Wood(5.0))
+            .insert_resource(Iron(3.0))
             .add_systems(OnEnter(GameState::Game), setup_money_ui)
             .add_systems(Update, update_resources_text.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_spawn_buttons.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_exit_button.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_confirm_dialog.run_if(in_state(GameState::Game)))
             .add_systems(Update, update_wood_from_forest.run_if(in_state(GameState::Game)))
+            .add_systems(Update, update_iron_from_mines.run_if(in_state(GameState::Game)))
             .add_systems(OnExit(GameState::Game), cleanup_game_entities);
     }
 }
@@ -126,6 +150,19 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             WoodText,
         ));
         
+        // Iron text
+        parent.spawn((
+            TextBundle::from_section(
+                "Iron: 3.0",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 32.0,
+                    color: Color::rgb(0.0, 0.0, 0.8),
+                },
+            ),
+            IronText,
+        ));
+        
         // Spawn cube button
         parent.spawn((
             ButtonBundle {
@@ -141,7 +178,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             SpawnCubeButton,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
-                format!("Spawn tank (-{} $, -{} wood)", PurchasableItem::Tank.cost(), PurchasableItem::Tank.wood_cost()),
+                format!("Spawn tank (-{} $, -{} wood, -{} iron)", PurchasableItem::Tank.cost(), PurchasableItem::Tank.wood_cost(), PurchasableItem::Tank.iron_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 24.0,
@@ -173,6 +210,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             ));
         });
+        
         // Spawn airplane button
         parent.spawn((
             ButtonBundle {
@@ -189,6 +227,30 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
                 format!("Spawn airplane (-{})", PurchasableItem::Airplane.cost()),
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 24.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
+
+        // Spawn mine button
+        parent.spawn((
+            ButtonBundle {
+                style: Style {
+                    width: Val::Px(270.0),
+                    height: Val::Px(40.0),
+                    margin: UiRect::all(Val::Px(5.0)),
+                    ..default()
+                },
+                background_color: Color::rgb(0.0, 0.0, 0.8).into(),
+                ..default()
+            },
+            SpawnMineButton,
+        )).with_children(|b| {
+            b.spawn(TextBundle::from_section(
+                format!("Spawn mine (-{} $, -{} wood)", PurchasableItem::Mine.cost(), PurchasableItem::Mine.wood_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 24.0,
@@ -227,18 +289,28 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn update_resources_text(
     money: Res<Money>, 
     wood: Res<Wood>,
-    mut money_query: Query<&mut Text, (With<MoneyText>, Without<WoodText>)>,
-    mut wood_query: Query<&mut Text, With<WoodText>>,
+    iron: Res<Iron>,
+    mut query_set: ParamSet<(
+        Query<&mut Text, With<MoneyText>>,
+        Query<&mut Text, With<WoodText>>, 
+        Query<&mut Text, With<IronText>>
+    )>,
 ) {
     if money.is_changed() {
-        for mut text in &mut money_query {
+        for mut text in &mut query_set.p0() {
             text.sections[0].value = format!("Money: {:.1}", money.0);
         }
     }
     
     if wood.is_changed() {
-        for mut text in &mut wood_query {
+        for mut text in &mut query_set.p1() {
             text.sections[0].value = format!("Wood: {:.1}", wood.0);
+        }
+    }
+    
+    if iron.is_changed() {
+        for mut text in &mut query_set.p2() {
+            text.sections[0].value = format!("Iron: {:.1}", iron.0);
         }
     }
 }
@@ -263,6 +335,33 @@ fn update_wood_from_forest(
     }
 }
 
+// System to update iron from mines
+fn update_iron_from_mines(
+    time: Res<Time>,
+    mut iron: ResMut<Iron>,
+    query: Query<(&crate::game::Mine, &crate::game::FarmActive, &crate::game::MineIronRate)>,
+) {
+    // Skip processing if there are no mines
+    if query.is_empty() {
+        return;
+    }
+    
+    // Calculate iron generation per second for active mines
+    let mut iron_per_second = 0.0;
+    for (_, active, iron_rate) in query.iter() {
+        if active.0 {
+            iron_per_second += iron_rate.0;
+        }
+    }
+    
+    // Add iron based on elapsed time
+    if iron_per_second > 0.0 {
+        // Here we directly update iron outside the farm income timer
+        // This prevents large jumps when the timer triggers
+        iron.0 += iron_per_second * time.delta_seconds();
+    }
+}
+
 // Handle button presses for spawning tank/sphere/airplane
 fn handle_spawn_buttons(
     mut commands: Commands,
@@ -275,14 +374,16 @@ fn handle_spawn_buttons(
             Entity,
             Option<&SpawnCubeButton>,
             Option<&SpawnSphereButton>,
-            Option<&SpawnAirplaneButton>
+            Option<&SpawnAirplaneButton>,
+            Option<&SpawnMineButton>
         ),
-        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>, With<SpawnAirplaneButton>)>)
+        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>, With<SpawnAirplaneButton>, With<SpawnMineButton>)>)
     >,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
+    mut iron: ResMut<Iron>,
 ) {
-    for (interaction, mut color, entity, is_cube, is_sphere, is_airplane) in &mut interaction_query {
+    for (interaction, mut color, entity, is_cube, is_sphere, is_airplane, is_mine) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
@@ -291,14 +392,17 @@ fn handle_spawn_buttons(
                     PurchasableItem::Sphere
                 } else if is_airplane.is_some() {
                     PurchasableItem::Airplane
+                } else if is_mine.is_some() {
+                    PurchasableItem::Mine
                 } else {
                     continue;
                 };
 
                 // Check if player has enough resources
-                if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
+                if money.0 >= item.cost() && wood.0 >= item.wood_cost() && iron.0 >= item.iron_cost() {
                     money.0 -= item.cost();
                     wood.0 -= item.wood_cost();
+                    iron.0 -= item.iron_cost();
                     spawn_shape(&mut commands, &mut meshes, &mut materials, item.shape_type());
                 }
                 *color = Color::GRAY.into();
@@ -311,8 +415,10 @@ fn handle_spawn_buttons(
                     *color = Color::DARK_GREEN.into();
                 } else if is_sphere.is_some() {
                     *color = BUTTON_BLUE.into();
-                } else {
+                } else if is_airplane.is_some() {
                     *color = Color::rgb(0.7, 0.7, 0.7).into();
+                } else if is_mine.is_some() {
+                    *color = Color::rgb(0.0, 0.0, 0.8).into();
                 }
             }
         }
@@ -348,6 +454,8 @@ fn handle_confirm_dialog(
     mut game_state: ResMut<NextState<GameState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
     mut money: ResMut<Money>,
+    mut wood: ResMut<Wood>,
+    mut iron: ResMut<Iron>,
     dialog_query: Query<Entity, With<ConfirmDialog>>,
 ) {
     for (interaction, action) in &mut interaction_query {
@@ -359,8 +467,10 @@ fn handle_confirm_dialog(
                         commands.entity(dialog).despawn_recursive();
                     }
                     
-                    // Reset money to initial value
+                    // Reset resources to initial values
                     money.0 = 10.0;
+                    wood.0 = 5.0;
+                    iron.0 = 3.0;
                     
                     // Then set states in the correct order
                     menu_state.set(MenuState::Main);
@@ -448,7 +558,7 @@ fn spawn_shape(
                         base_color: Color::rgb(0.8, 0.7, 0.6),
                         ..default()
                     }),
-                    transform: Transform::from_xyz(0.0, 0.5, 0.0),
+                    transform: Transform::from_xyz(5.0, 0.5, 0.0),
                     ..default()
                 },
                 shape_type,
@@ -558,6 +668,14 @@ fn spawn_shape(
         }
         ShapeType::Farm => {
             crate::game::farm::spawn_forest_farm(
+                commands,
+                meshes,
+                materials,
+                Vec3::new(0.0, 0.0, 0.0),
+            );
+        }
+        ShapeType::Mine => {
+            crate::game::mine::spawn_inactive_mine(
                 commands,
                 meshes,
                 materials,

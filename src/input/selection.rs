@@ -5,7 +5,7 @@ use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine};
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
@@ -15,7 +15,7 @@ pub struct MouseWorldPosition(pub Option<Vec3>);
 pub fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
-    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>)>,
+    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>)>,
     query_attackable: Query<Entity, Or<(With<Enemy>, With<EnemyTower>)>>,
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
 ) {
@@ -88,6 +88,7 @@ pub fn handle_ground_clicks(
     query_enemy: Query<(), With<Enemy>>,
     query_enemy_tower: Query<(), With<EnemyTower>>,
     query_farm: Query<(), With<Farm>>,
+    query_mine: Query<(), With<Mine>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
@@ -121,10 +122,11 @@ pub fn handle_ground_clicks(
         let target_point = ground_click_position.unwrap();
         
         if let Some(entity_to_move) = selected_entity_res.0 {
-            // Проверяем, что объект не является фермой, врагом или башней
+            // Проверяем, что объект не является фермой, шахтой, врагом или башней
             if query_enemy.get(entity_to_move).is_err() && 
                query_enemy_tower.get(entity_to_move).is_err() && 
-               query_farm.get(entity_to_move).is_err() {
+               query_farm.get(entity_to_move).is_err() &&
+               query_mine.get(entity_to_move).is_err() {
                 info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
                 commands.entity(entity_to_move).insert(MovementOrder(target_point));
                 
@@ -144,8 +146,10 @@ pub fn handle_ground_clicks(
                     "enemy" 
                 } else if query_enemy_tower.get(entity_to_move).is_ok() { 
                     "enemy tower" 
-                } else { 
+                } else if query_farm.get(entity_to_move).is_ok() { 
                     "farm" 
+                } else {
+                    "mine"
                 };
                 info!("handle_ground_clicks: Can't move {} object", entity_type);
             }

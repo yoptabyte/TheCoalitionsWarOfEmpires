@@ -77,6 +77,7 @@ pub fn draw_hover_outline(
             ShapeType::Airplane => 4.0, // airplane length
             ShapeType::Tower => 2.0, // tower base size
             ShapeType::Farm => 2.0, // farm size
+            ShapeType::Mine => 2.0, // mine size
         };
         
         // Draw a square on the ground
@@ -105,6 +106,7 @@ pub fn draw_hover_outline(
                 ShapeType::Airplane => 4.0,
                 ShapeType::Tower => 2.0,
                 ShapeType::Farm => 2.0,
+                ShapeType::Mine => 2.0,
             };
             
             // Draw a square on the ground with a different color
@@ -136,10 +138,8 @@ pub fn draw_health_bars(
             continue;
         }
         
-        // Определяем позицию для отрисовки
         let mut position = transform.translation + Vec3::new(0.0, 1.5, 0.0);
         
-        // Для башни рисуем полосу здоровья выше
         if is_tower.is_some() {
             position = transform.translation + Vec3::new(0.0, 7.0, 0.0);
         }
