@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-/// marker for the controllable cube
+/// marker for the controllable tank
 #[derive(Component)]
-pub struct ControllableCube;
+pub struct Tank;
 
 /// marker for selectable entities
 #[derive(Component)]

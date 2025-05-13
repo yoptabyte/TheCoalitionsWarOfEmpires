@@ -33,11 +33,10 @@ pub fn update_farm_income(
         info!("Farm income update: Found {} farms, {} are active, total income: {}/s", 
                query.iter().count(), active_farms, total_income);
         
-        // Convert to u32 and add to money resource
+        // Add income directly to money resource
         if total_income > 0.0 {
-            let income_amount = (total_income as u32).max(1); // Минимум 1 монета, если есть доход
-            money.0 += income_amount;
-            info!("Farm income added: +{} money, new total: {}", income_amount, money.0);
+            money.0 += total_income;
+            info!("Farm income added: +{:.1} money, new total: {:.1}", total_income, money.0);
         }
     }
 }
@@ -215,7 +214,7 @@ pub fn spawn_inactive_forest_farm(
         Farm,
         ForestFarm,
         FarmActive(false),
-        FarmIncomeRate(0.2),
+        FarmIncomeRate(0.1),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),

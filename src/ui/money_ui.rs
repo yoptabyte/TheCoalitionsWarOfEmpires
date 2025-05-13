@@ -7,7 +7,11 @@ use crate::game_plugin::OnGameScreen;
 
 // Resource for player's money
 #[derive(Resource, Debug, Default)]
-pub struct Money(pub u32);
+pub struct Money(pub f32);
+
+// Resource for player's wood
+#[derive(Resource, Debug, Default)]
+pub struct Wood(pub f32);
 
 // Marker component for UI camera
 #[derive(Component)]
@@ -16,23 +20,31 @@ pub struct UICamera;
 // Enum for purchasable items and their costs
 #[derive(Debug, Clone, Copy)]
 pub enum PurchasableItem {
-    Cube,
+    Tank,
     Sphere,
     Airplane,
 }
 
 impl PurchasableItem {
-    pub fn cost(&self) -> u32 {
+    pub fn cost(&self) -> f32 {
         match self {
-            PurchasableItem::Cube => 3,
-            PurchasableItem::Sphere => 2,
-            PurchasableItem::Airplane => 5,
+            PurchasableItem::Tank => 3.0,
+            PurchasableItem::Sphere => 2.0,
+            PurchasableItem::Airplane => 5.0,
+        }
+    }
+    
+    pub fn wood_cost(&self) -> f32 {
+        match self {
+            PurchasableItem::Tank => 2.0,
+            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Airplane => 0.0,
         }
     }
 
     pub fn shape_type(&self) -> ShapeType {
         match self {
-            PurchasableItem::Cube => ShapeType::Cube,
+            PurchasableItem::Tank => ShapeType::Cube,
             PurchasableItem::Sphere => ShapeType::Sphere,
             PurchasableItem::Airplane => ShapeType::Airplane,
         }
@@ -42,6 +54,8 @@ impl PurchasableItem {
 // Marker components for UI elements
 #[derive(Component)]
 pub struct MoneyText;
+#[derive(Component)]
+pub struct WoodText;
 #[derive(Component)]
 pub struct SpawnCubeButton;
 #[derive(Component)]
@@ -57,12 +71,15 @@ impl Plugin for MoneyUiPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<Money>()
-            .insert_resource(Money(10))
+            .init_resource::<Wood>()
+            .insert_resource(Money(10.0))
+            .insert_resource(Wood(5.0))
             .add_systems(OnEnter(GameState::Game), setup_money_ui)
-            .add_systems(Update, update_money_text.run_if(in_state(GameState::Game)))
+            .add_systems(Update, update_resources_text.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_spawn_buttons.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_exit_button.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_confirm_dialog.run_if(in_state(GameState::Game)))
+            .add_systems(Update, update_wood_from_forest.run_if(in_state(GameState::Game)))
             .add_systems(OnExit(GameState::Game), cleanup_game_entities);
     }
 }
@@ -86,7 +103,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         // Money text
         parent.spawn((
             TextBundle::from_section(
-                "Money: 10",
+                "Money: 10.0",
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 32.0,
@@ -95,11 +112,25 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ),
             MoneyText,
         ));
+        
+        // Wood text
+        parent.spawn((
+            TextBundle::from_section(
+                "Wood: 5.0",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 32.0,
+                    color: Color::rgb(0.0, 0.8, 0.0),
+                },
+            ),
+            WoodText,
+        ));
+        
         // Spawn cube button
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(180.0),
+                    width: Val::Px(220.0),
                     height: Val::Px(40.0),
                     margin: UiRect::all(Val::Px(5.0)),
                     ..default()
@@ -110,7 +141,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             SpawnCubeButton,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
-                format!("Spawn cube (-{})", PurchasableItem::Cube.cost()),
+                format!("Spawn tank (-{} $, -{} wood)", PurchasableItem::Tank.cost(), PurchasableItem::Tank.wood_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 24.0,
@@ -118,6 +149,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             ));
         });
+        
         // Spawn sphere button
         parent.spawn((
             ButtonBundle {
@@ -191,16 +223,47 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-// Update money text when money changes
-fn update_money_text(money: Res<Money>, mut query: Query<&mut Text, With<MoneyText>>) {
+// Update resources text when they change
+fn update_resources_text(
+    money: Res<Money>, 
+    wood: Res<Wood>,
+    mut money_query: Query<&mut Text, (With<MoneyText>, Without<WoodText>)>,
+    mut wood_query: Query<&mut Text, With<WoodText>>,
+) {
     if money.is_changed() {
-        for mut text in &mut query {
-            text.sections[0].value = format!("Money: {}", money.0);
+        for mut text in &mut money_query {
+            text.sections[0].value = format!("Money: {:.1}", money.0);
+        }
+    }
+    
+    if wood.is_changed() {
+        for mut text in &mut wood_query {
+            text.sections[0].value = format!("Wood: {:.1}", wood.0);
         }
     }
 }
 
-// Handle button presses for spawning cube/sphere/airplane
+// System to update wood from forest farms
+fn update_wood_from_forest(
+    time: Res<Time>,
+    mut wood: ResMut<Wood>,
+    query: Query<(&crate::game::ForestFarm, &crate::game::FarmActive)>,
+) {
+    let dt = time.delta_seconds();
+    let mut total_wood_income = 0.0;
+    
+    for (_, active) in query.iter() {
+        if active.0 {
+            total_wood_income += 0.1 * dt; // 0.1 wood per second
+        }
+    }
+    
+    if total_wood_income > 0.0 {
+        wood.0 += total_wood_income;
+    }
+}
+
+// Handle button presses for spawning tank/sphere/airplane
 fn handle_spawn_buttons(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -217,12 +280,13 @@ fn handle_spawn_buttons(
         (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>, With<SpawnAirplaneButton>)>)
     >,
     mut money: ResMut<Money>,
+    mut wood: ResMut<Wood>,
 ) {
     for (interaction, mut color, entity, is_cube, is_sphere, is_airplane) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
-                    PurchasableItem::Cube
+                    PurchasableItem::Tank
                 } else if is_sphere.is_some() {
                     PurchasableItem::Sphere
                 } else if is_airplane.is_some() {
@@ -231,8 +295,10 @@ fn handle_spawn_buttons(
                     continue;
                 };
 
-                if money.0 >= item.cost() {
+                // Check if player has enough resources
+                if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
                     money.0 -= item.cost();
+                    wood.0 -= item.wood_cost();
                     spawn_shape(&mut commands, &mut meshes, &mut materials, item.shape_type());
                 }
                 *color = Color::GRAY.into();
@@ -294,7 +360,7 @@ fn handle_confirm_dialog(
                     }
                     
                     // Reset money to initial value
-                    money.0 = 10;
+                    money.0 = 10.0;
                     
                     // Then set states in the correct order
                     menu_state.set(MenuState::Main);
@@ -399,6 +465,8 @@ fn spawn_shape(
                     range: 10.0,
                     damage: 10.0,
                 },
+                crate::game::components::Tank,
+                Name::new("Tank"),
             ));
         }
         ShapeType::Sphere => {

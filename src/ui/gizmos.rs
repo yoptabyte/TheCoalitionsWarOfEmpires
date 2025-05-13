@@ -128,16 +128,21 @@ pub fn draw_hover_outline(
 /// system for displaying health bars above objects
 pub fn draw_health_bars(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &Health)>,
+    query: Query<(&Transform, &Health, Option<&crate::game::EnemyTower>)>,
     _camera_query: Query<(&Transform, &Camera), With<Camera>>,
 ) {
-    for (transform, health) in query.iter() {
+    for (transform, health, is_tower) in query.iter() {
         if health.max <= 0.0 {
             continue;
         }
         
         // Определяем позицию для отрисовки
-        let position = transform.translation + Vec3::new(0.0, 1.5, 0.0);
+        let mut position = transform.translation + Vec3::new(0.0, 1.5, 0.0);
+        
+        // Для башни рисуем полосу здоровья выше
+        if is_tower.is_some() {
+            position = transform.translation + Vec3::new(0.0, 7.0, 0.0);
+        }
         
         let health_ratio = health.current / health.max;
         let bar_width = 1.0;
