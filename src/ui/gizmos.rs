@@ -78,6 +78,7 @@ pub fn draw_hover_outline(
             ShapeType::Tower => 2.0, // tower base size
             ShapeType::Farm => 2.0, // farm size
             ShapeType::Mine => 2.0, // mine size
+            ShapeType::SteelFactory => 2.0, // steel factory size
         };
         
         // Draw a square on the ground
@@ -107,6 +108,7 @@ pub fn draw_hover_outline(
                 ShapeType::Tower => 2.0,
                 ShapeType::Farm => 2.0,
                 ShapeType::Mine => 2.0,
+                ShapeType::SteelFactory => 2.0,
             };
             
             // Draw a square on the ground with a different color

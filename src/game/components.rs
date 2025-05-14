@@ -33,6 +33,7 @@ pub enum ShapeType {
     Tower,
     Farm,
     Mine,
+    SteelFactory,
 }
 
 /// marker for enemies
@@ -92,6 +93,10 @@ pub struct ForestFarm;
 #[derive(Component)]
 pub struct Mine;
 
+/// marker for steel factory structure
+#[derive(Component)]
+pub struct SteelFactory;
+
 /// component indicating if the farm is active
 #[derive(Component)]
 pub struct FarmActive(pub bool);
@@ -100,6 +105,10 @@ pub struct FarmActive(pub bool);
 #[derive(Component)]
 pub struct FarmIncomeRate(pub f32);
 
-/// component for mine iron income rate per second
+/// component for mine iron production rate per second
 #[derive(Component)]
 pub struct MineIronRate(pub f32);
+
+/// component for steel factory steel production rate per second
+#[derive(Component)]
+pub struct SteelProductionRate(pub f32);

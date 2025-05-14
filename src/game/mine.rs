@@ -172,6 +172,7 @@ pub fn spawn_mine_on_keystroke(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
+    query: Query<&Transform, With<Mine>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyM) {
         // Check if player has enough resources (100 money, 35 wood)
@@ -179,14 +180,99 @@ pub fn spawn_mine_on_keystroke(
             info!("Spawning a mine, cost: 100 money, 35 wood");
             money.0 -= 100.0;
             wood.0 -= 35.0;
-            spawn_inactive_mine(
+            
+            // Determine the position for the new mine on the left side of the map
+            let position = find_free_position_in_area(&query, 5.0, Vec3::new(-15.0, 0.0, 0.0), 8.0);
+            
+            info!("Found position for mine in left area: {:?}", position);
+            
+            spawn_active_mine(
                 &mut commands,
                 &mut meshes,
                 &mut materials,
-                Vec3::new(0.0, 0.0, 0.0),
+                position,
             );
         } else {
             info!("Not enough resources to spawn a mine! Need 100 money and 35 wood");
         }
     }
+}
+
+/// Spawn an active mine at the given position
+pub fn spawn_active_mine(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+) {
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
+            material: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.0, 0.0, 0.9),
+                emissive: Color::rgb(0.0, 0.0, 0.3),
+                ..default()
+            }),
+            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+            ..default()
+        },
+        Name::new("ActiveMine"),
+        ShapeType::Mine,
+        Selectable,
+        Mine,
+        FarmActive(true),
+        FarmIncomeRate(0.6),
+        MineIronRate(0.2),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
+    ));
+}
+
+/// Finds a free position to place a building in the specified area
+fn find_free_position_in_area(query: &Query<&Transform, With<Mine>>, min_distance: f32, center: Vec3, radius: f32) -> Vec3 {
+    const MAX_ATTEMPTS: usize = 30;
+    
+    for _ in 0..MAX_ATTEMPTS {
+        // Generate a random position within the maximum radius around the center of the area
+        let uuid = bevy::utils::Uuid::new_v4();
+        let bytes = uuid.as_bytes();
+        let random_angle = (bytes[0] as f32 / 255.0) * std::f32::consts::TAU;
+        let random_distance = (bytes[1] as f32 / 255.0) * radius;
+        
+        let test_position = center + Vec3::new(
+            random_distance * random_angle.cos(),
+            0.0,
+            random_distance * random_angle.sin()
+        );
+        
+        // Check if it's far enough from other objects
+        let mut is_valid = true;
+        for transform in query.iter() {
+            let distance = (transform.translation - test_position).length();
+            if distance < min_distance {
+                is_valid = false;
+                break;
+            }
+        }
+        
+        if is_valid {
+            return test_position;
+        }
+    }
+    
+    // If no free space found, return a random point in the area
+    let uuid = bevy::utils::Uuid::new_v4();
+    let bytes = uuid.as_bytes();
+    let random_angle = (bytes[0] as f32 / 255.0) * std::f32::consts::TAU;
+    let random_distance = (bytes[1] as f32 / 255.0) * radius;
+    
+    center + Vec3::new(
+        random_distance * random_angle.cos(),
+        0.0,
+        random_distance * random_angle.sin()
+    )
 } 
