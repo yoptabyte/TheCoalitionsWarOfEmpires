@@ -33,6 +33,9 @@ pub fn camera_zoom_system(
                 camera_transform.translation += zoom_movement;
                 
                 camera_transform.look_at(look_target, Vec3::Y);
+                
+                info!("camera_zoom_system: Camera transform updated - pos: {:?}, forward: {:?}, zoom_level: {}", 
+                       camera_transform.translation, camera_transform.forward(), camera_settings.zoom_level);
             }
         }
     }
@@ -64,6 +67,9 @@ pub fn camera_follow_selected(
                 
                 // look at the selected object
                 camera_transform.look_at(selected_transform.translation, Vec3::Y);
+                
+                info!("camera_follow_selected: Camera following entity - camera pos: {:?}, target pos: {:?}", 
+                       camera_transform.translation, selected_transform.translation);
             }
         }
     }
@@ -80,10 +86,12 @@ pub fn camera_right_button_movement(
     if mouse_buttons.just_pressed(MouseButton::Right) {
         camera_movement_state.is_right_button_pressed = true;
         camera_movement_state.last_mouse_position = None;
+        info!("camera_right_button_movement: Right mouse button pressed, entering camera movement mode");
     } else if mouse_buttons.just_released(MouseButton::Right) {
         camera_movement_state.is_right_button_pressed = false;
         camera_movement_state.last_mouse_position = None;
         camera_movement_state.manual_camera_mode = true;
+        info!("camera_right_button_movement: Right mouse button released, entering manual camera mode");
     }
 
     if camera_movement_state.is_right_button_pressed {
@@ -109,6 +117,9 @@ pub fn camera_right_button_movement(
             let look_dir = camera_transform.forward();
             let target = camera_transform.translation + look_dir * 10.0;
             camera_transform.look_at(target, Vec3::Y);
+            
+            info!("camera_right_button_movement: Camera moved - pos: {:?}, movement: {:?}", 
+                   camera_transform.translation, movement);
         }
     }
 }

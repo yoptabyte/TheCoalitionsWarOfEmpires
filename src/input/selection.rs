@@ -64,13 +64,23 @@ pub fn update_mouse_world_position(
                 let plane_origin = Vec3::ZERO;
                 
                 let denominator = plane_normal.dot(*ray.direction);
-                if denominator.abs() > 0.0001 {
+                
+                if denominator.abs() > 0.00001 {
                     let t = (plane_normal.dot(plane_origin - ray.origin)) / denominator;
+                    
                     if t >= 0.0 {
                         let world_position = ray.origin + *ray.direction * t;
+                        
+                        info!("Mouse world position: {:?}, ray dir: {:?}, camera pos: {:?}", 
+                              world_position, ray.direction, camera_transform.translation());
+                        
                         mouse_position.0 = Some(world_position);
                         return;
+                    } else {
+                        info!("Ray intersection with ground plane is behind camera, t={}", t);
                     }
+                } else {
+                    info!("Ray is nearly parallel to ground plane, denominator={}", denominator);
                 }
             }
         }
@@ -105,6 +115,8 @@ pub fn handle_ground_clicks(
             continue;
         }
         
+        info!("handle_ground_clicks: Processing click event on entity {:?}, hit: {:?}", event.target, event.hit);
+        
         if query_selectable.get(event.target).is_ok() {
             clicked_on_selectable = true;
             info!("handle_ground_clicks: clicked on selectable {:?}", event.target);
@@ -114,13 +126,19 @@ pub fn handle_ground_clicks(
             clicked_on_ground = true;
             if let Some(position) = event.hit.position {
                 ground_click_position = Some(position);
-                info!("handle_ground_clicks: clicked on ground {:?}", position);
+                info!("handle_ground_clicks: clicked on ground at position {:?}", position);
+            } else {
+                info!("handle_ground_clicks: clicked on ground but no position information available");
             }
         }
     }
     
+    // Улучшенная логика для определения клика по земле
     if !clicked_on_selectable && clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
         let target_point = ground_click_position.unwrap();
+        
+        // Добавим логирование для отладки
+        info!("handle_ground_clicks: Valid ground click detected at position {:?}", target_point);
         
         if let Some(entity_to_move) = selected_entity_res.0 {
             // Check that the object is not a farm, mine, steel mill, enemy, or tower
@@ -130,11 +148,15 @@ pub fn handle_ground_clicks(
                query_mine.get(entity_to_move).is_err() &&
                query_steel_factory.get(entity_to_move).is_err() {
                 info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
+                
+                // Отправляем команду на перемещение
                 commands.entity(entity_to_move).insert(MovementOrder(target_point));
                 
+                // Обновляем информацию для отображения круга клика
                 click_circle.position = Some(target_point);
                 click_circle.spawn_time = Some(time.elapsed_seconds());
                 
+                // Создаем эффект частиц в месте клика
                 commands.spawn((
                     Name::new("click_particles"),
                     ParticleEffectBundle {
@@ -160,5 +182,14 @@ pub fn handle_ground_clicks(
         }
     } else if clicked_on_selectable {
         click_circle.position = None;
+    } else {
+        // Логирование пропущенного клика для отладки
+        if !clicked_on_ground && !clicked_on_selectable {
+            info!("handle_ground_clicks: Click not registered on ground or selectable object");
+        } else if selected_entity_res.0.is_none() {
+            info!("handle_ground_clicks: No entity selected");
+        } else if ground_click_position.is_none() && clicked_on_ground {
+            info!("handle_ground_clicks: Click registered on ground but position is None");
+        }
     }
 }

@@ -21,6 +21,10 @@ pub fn handle_attacks(
             continue;
         }
         
+        // Подробное логирование клика
+        info!("handle_attacks: Click event detail - target: {:?}, hit position: {:?}", 
+              event.target, event.hit.position);
+        
         let is_enemy = query_enemy.get(event.target).is_ok();
         let is_enemy_tower = query_enemy_tower.get(event.target).is_ok();
         
@@ -57,6 +61,7 @@ pub fn handle_attacks(
                                 let target_type = if is_enemy { "enemy" } else { "tower" };
                                 info!("handle_attacks: Shooting at {} {:?} from distance {}", target_type, event.target, distance);
                                 
+                                // Создаем снаряд
                                 let projectile_mesh = meshes.add(Mesh::from(Sphere::new(0.1)));
                                 commands.spawn((
                                     PbrBundle {
@@ -73,6 +78,7 @@ pub fn handle_attacks(
                                     Name::new("projectile"),
                                 ));
                                 
+                                // Обновляем время последнего выстрела
                                 commands.entity(shooter_entity).insert(CanShoot {
                                     cooldown: can_shoot.cooldown,
                                     last_shot: current_time,
@@ -82,13 +88,21 @@ pub fn handle_attacks(
                             } else {
                                 info!("handle_attacks: Target out of range (distance: {}, range: {})", distance, can_shoot.range);
                             }
+                        } else {
+                            info!("handle_attacks: Failed to get transforms for shooter or target");
                         }
                     } else {
                         info!("handle_attacks: Weapon on cooldown, remaining: {}", 
                               can_shoot.cooldown - (current_time - can_shoot.last_shot));
                     }
+                } else {
+                    info!("handle_attacks: Selected entity cannot shoot");
                 }
+            } else {
+                info!("handle_attacks: No shooter entity selected");
             }
+        } else {
+            info!("handle_attacks: Not a valid attack target: {:?}", event.target);
         }
     }
 }
