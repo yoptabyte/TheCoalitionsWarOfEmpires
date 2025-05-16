@@ -183,7 +183,7 @@ pub fn spawn_steel_factory_on_keystroke(
             wood.0 -= 2.0;
             iron.0 -= 2.0;
             
-            // Determine the position for the new steel mill on the right side of the map
+            // Determine the position for the new factory on the right side of the map
             let position = find_free_position_in_area(&query, 5.0, Vec3::new(15.0, 0.0, 0.0), 8.0);
             
             info!("Found position for steel factory in right area: {:?}", position);

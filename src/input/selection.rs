@@ -5,7 +5,7 @@ use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant};
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
@@ -15,7 +15,7 @@ pub struct MouseWorldPosition(pub Option<Vec3>);
 pub fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
-    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>, Without<SteelFactory>)>,
+    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>, Without<SteelFactory>, Without<PetrochemicalPlant>)>,
     query_attackable: Query<Entity, Or<(With<Enemy>, With<EnemyTower>)>>,
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
 ) {
@@ -100,6 +100,7 @@ pub fn handle_ground_clicks(
     query_farm: Query<(), With<Farm>>,
     query_mine: Query<(), With<Mine>>,
     query_steel_factory: Query<(), With<SteelFactory>>,
+    query_petrochemical_plant: Query<(), With<PetrochemicalPlant>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
@@ -141,12 +142,13 @@ pub fn handle_ground_clicks(
         info!("handle_ground_clicks: Valid ground click detected at position {:?}", target_point);
         
         if let Some(entity_to_move) = selected_entity_res.0 {
-            // Check that the object is not a farm, mine, steel mill, enemy, or tower
+            // Check that the object is not a farm, mine, steel mill, petrochemical plant, enemy, or tower
             if query_enemy.get(entity_to_move).is_err() && 
                query_enemy_tower.get(entity_to_move).is_err() && 
                query_farm.get(entity_to_move).is_err() &&
                query_mine.get(entity_to_move).is_err() &&
-               query_steel_factory.get(entity_to_move).is_err() {
+               query_steel_factory.get(entity_to_move).is_err() &&
+               query_petrochemical_plant.get(entity_to_move).is_err() {
                 info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
                 
                 // Отправляем команду на перемещение
@@ -174,8 +176,10 @@ pub fn handle_ground_clicks(
                     "farm" 
                 } else if query_mine.get(entity_to_move).is_ok() {
                     "mine"
-                } else {
+                } else if query_steel_factory.get(entity_to_move).is_ok() {
                     "steel factory"
+                } else {
+                    "petrochemical plant"
                 };
                 info!("handle_ground_clicks: Can't move {} object", entity_type);
             }
