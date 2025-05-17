@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, Tower, EnemyTower};
+use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, Tower, EnemyTower, ShapeType};
 
 /// system for processing clicks on attackable objects (enemies or towers) and creating a shot
 pub fn handle_attacks(
@@ -163,4 +163,38 @@ pub fn update_projectiles(
 /// system for displaying health above objects (can be added in the future)
 pub fn display_health_system() {
     todo!("display_health_system");
+}
+
+/// System to handle damage from trenches to enemy infantry
+pub fn handle_trench_damage(
+    trench_query: Query<&Transform, With<crate::game::Trench>>,
+    mut enemy_query: Query<(&Transform, &mut Health), (With<Enemy>, With<ShapeType>)>,
+    time: Res<Time>,
+) {
+    // Базовая реализация для будущего добавления полной функциональности
+    // В будущем здесь будет:
+    // 1. Проверка расстояния от врагов до окопов
+    // 2. Если враг атакует окоп (находится рядом), то окоп наносит урон
+    // 3. Реализация здоровья окопа и его разрушения
+
+    // Примечание: полную функциональность добавим позже, как указано в требованиях
+    
+    for trench_transform in trench_query.iter() {
+        let trench_pos = trench_transform.translation;
+        
+        // Временно просто логируем информацию о наличии окопа для отладки
+        info!("Trench is at position: {:?}", trench_pos);
+        
+        // Проверяем всех врагов типа Infantry в радиусе 3 единиц от окопа
+        for (enemy_transform, mut _health) in enemy_query.iter_mut() {
+            let enemy_pos = enemy_transform.translation;
+            let distance = trench_pos.distance(enemy_pos);
+            
+            if distance < 3.0 {
+                // В будущем здесь будет:
+                // health.current -= 1.0 * time.delta_seconds();
+                info!("Enemy is near trench at position: {:?}, distance: {}", enemy_pos, distance);
+            }
+        }
+    }
 } 

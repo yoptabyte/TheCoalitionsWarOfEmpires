@@ -28,13 +28,14 @@ pub struct MovementOrder(pub Vec3);
 #[derive(Component)]
 pub enum ShapeType {
     Cube,
-    Sphere,
+    Infantry,
     Airplane,
     Tower,
     Farm,
     Mine,
     SteelFactory,
     PetrochemicalPlant,
+    Trench,
 }
 
 /// marker for enemies
@@ -121,3 +122,30 @@ pub struct SteelProductionRate(pub f32);
 /// component for petrochemical plant oil production rate per second
 #[derive(Component)]
 pub struct OilProductionRate(pub f32);
+
+/// marker for the trench
+#[derive(Component)]
+pub struct Trench;
+
+/// component to track trench construction time
+#[derive(Component)]
+pub struct TrenchConstruction {
+    pub time_remaining: f32,
+    pub total_construction_time: f32,
+}
+
+/// resource for trench cost
+#[derive(Resource, Clone)]
+pub struct TrenchCost {
+    pub wood: u32,
+    pub money: u32,
+}
+
+impl Default for TrenchCost {
+    fn default() -> Self {
+        Self {
+            wood: 3,
+            money: 3,
+        }
+    }
+}

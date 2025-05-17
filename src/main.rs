@@ -61,6 +61,7 @@ fn main() {
                 tower::repair_tower,
                 tower::update_tower_health_status,
                 tower::spawn_tower_on_keystroke,
+                systems::combat::handle_trench_damage,
             ).run_if(in_state(GameState::Game))
         )
         .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))

@@ -41,7 +41,7 @@ pub fn setup(
         }),
     ));
 
-    // enemy 2 - red sphere
+    // enemy 2 - red sphere (infantry)
     commands.spawn((
         PbrBundle {
             mesh: sphere_mesh.clone(),
@@ -52,7 +52,7 @@ pub fn setup(
         Enemy,
         Selectable,
         PickableBundle::default(),
-        ShapeType::Sphere,
+        ShapeType::Infantry,
         Health { current: 60.0, max: 60.0 },
         CanShoot {
             cooldown: 0.8,
@@ -60,7 +60,7 @@ pub fn setup(
             range: 12.0,
             damage: 8.0,
         },
-        Name::new("EnemySphere"),
+        Name::new("EnemyInfantry"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),

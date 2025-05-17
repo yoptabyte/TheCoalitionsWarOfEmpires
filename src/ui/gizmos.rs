@@ -73,13 +73,14 @@ pub fn draw_hover_outline(
         let world_position = transform.translation;
         let size = match shape_type {
             ShapeType::Cube => 1.0, // cube size
-            ShapeType::Sphere => 1.0, // sphere diameter
+            ShapeType::Infantry => 1.0, // infantry size
             ShapeType::Airplane => 4.0, // airplane length
             ShapeType::Tower => 2.0, // tower base size
             ShapeType::Farm => 2.0, // farm size
             ShapeType::Mine => 2.0, // mine size
             ShapeType::SteelFactory => 2.0, // steel factory size
             ShapeType::PetrochemicalPlant => 2.0, // petrochemical plant size
+            ShapeType::Trench => 2.0, // trench size
         };
         
         // Draw a square on the ground
@@ -104,13 +105,14 @@ pub fn draw_hover_outline(
             let world_position = transform.translation;
             let size = match shape_type {
                 ShapeType::Cube => 1.0,
-                ShapeType::Sphere => 1.0,
+                ShapeType::Infantry => 1.0,
                 ShapeType::Airplane => 4.0,
                 ShapeType::Tower => 2.0,
                 ShapeType::Farm => 2.0,
                 ShapeType::Mine => 2.0,
                 ShapeType::SteelFactory => 2.0,
                 ShapeType::PetrochemicalPlant => 2.0,
+                ShapeType::Trench => 2.0,
             };
             
             // Draw a square on the ground with a different color

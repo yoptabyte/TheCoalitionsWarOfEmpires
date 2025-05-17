@@ -4,6 +4,7 @@ use crate::game::ShapeType;
 use crate::menu::common::{GameState, MenuState};
 use crate::ui::confirm_dialog::{ConfirmDialog, ConfirmDialogAction, spawn_confirm_dialog};
 use crate::game_plugin::OnGameScreen;
+use bevy_mod_picking::prelude::*;
 
 // Resource for player's money
 #[derive(Resource, Debug, Default)]
@@ -39,77 +40,84 @@ pub struct UICamera;
 #[derive(Debug, Clone, Copy)]
 pub enum PurchasableItem {
     Tank,
-    Sphere,
+    Infantry,
     Airplane,
     Mine,
     SteelFactory,
     PetrochemicalPlant,
+    Trench,
 }
 
 impl PurchasableItem {
     pub fn cost(&self) -> f32 {
         match self {
             PurchasableItem::Tank => 3.0,
-            PurchasableItem::Sphere => 2.0,
+            PurchasableItem::Infantry => 2.0,
             PurchasableItem::Airplane => 5.0,
             PurchasableItem::Mine => 7.0,
             PurchasableItem::SteelFactory => 10.0,
             PurchasableItem::PetrochemicalPlant => 10.0,
+            PurchasableItem::Trench => 3.0,
         }
     }
     
     pub fn wood_cost(&self) -> f32 {
         match self {
             PurchasableItem::Tank => 2.0,
-            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Infantry => 0.0,
             PurchasableItem::Airplane => 0.0,
             PurchasableItem::Mine => 3.0,
             PurchasableItem::SteelFactory => 2.0,
             PurchasableItem::PetrochemicalPlant => 5.0,
+            PurchasableItem::Trench => 3.0,
         }
     }
 
     pub fn iron_cost(&self) -> f32 {
         match self {
             PurchasableItem::Tank => 2.0,
-            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Infantry => 0.0,
             PurchasableItem::Airplane => 0.0,
             PurchasableItem::Mine => 3.0,
             PurchasableItem::SteelFactory => 2.0,
             PurchasableItem::PetrochemicalPlant => 0.0,
+            PurchasableItem::Trench => 0.0,
         }
     }
     
     pub fn steel_cost(&self) -> f32 {
         match self {
             PurchasableItem::Tank => 3.0,
-            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Infantry => 0.0,
             PurchasableItem::Airplane => 2.0,
             PurchasableItem::Mine => 0.0,
             PurchasableItem::SteelFactory => 0.0,
             PurchasableItem::PetrochemicalPlant => 5.0,
+            PurchasableItem::Trench => 0.0,
         }
     }
 
     pub fn oil_cost(&self) -> f32 {
         match self {
             PurchasableItem::Tank => 5.0,
-            PurchasableItem::Sphere => 0.0,
+            PurchasableItem::Infantry => 0.0,
             PurchasableItem::Airplane => 5.0,
             PurchasableItem::Mine => 0.0,
             PurchasableItem::SteelFactory => 0.0,
             PurchasableItem::PetrochemicalPlant => 0.0,
+            PurchasableItem::Trench => 0.0,
         }
     }
 
     pub fn shape_type(&self) -> ShapeType {
         match self {
             PurchasableItem::Tank => ShapeType::Cube,
-            PurchasableItem::Sphere => ShapeType::Sphere,
+            PurchasableItem::Infantry => ShapeType::Infantry,
             PurchasableItem::Airplane => ShapeType::Airplane,
             PurchasableItem::Mine => ShapeType::Mine,
             PurchasableItem::SteelFactory => ShapeType::SteelFactory,
             PurchasableItem::PetrochemicalPlant => ShapeType::PetrochemicalPlant,
+            PurchasableItem::Trench => ShapeType::Trench,
         }
     }
 }
@@ -130,7 +138,7 @@ pub struct GameTimeText;
 #[derive(Component)]
 pub struct SpawnCubeButton;
 #[derive(Component)]
-pub struct SpawnSphereButton;
+pub struct SpawnInfantryButton;
 #[derive(Component)]
 pub struct SpawnAirplaneButton;
 #[derive(Component)]
@@ -141,6 +149,8 @@ pub struct SpawnSteelFactoryButton;
 pub struct SpawnPetrochemicalPlantButton;
 #[derive(Component)]
 pub struct ExitButton;
+#[derive(Component)]
+pub struct SpawnTrenchButton;
 
 pub struct MoneyUiPlugin;
 
@@ -319,69 +329,70 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnGameScreen,
     ));
 
-    // Container for buttons
-    commands.spawn((
+    // UI container for right-side buttons
+    commands.spawn(
         NodeBundle {
             style: Style {
-                width: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::FlexStart,
                 position_type: PositionType::Absolute,
-                top: Val::Px(60.0),
-                left: Val::Px(10.0),
+                right: Val::Px(10.0),
+                bottom: Val::Px(10.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::FlexEnd,
+                margin: UiRect::all(Val::Px(8.0)),
+                row_gap: Val::Px(10.0),
                 ..default()
             },
+            background_color: Color::NONE.into(),
             ..default()
-        },
-        OnGameScreen,
-    )).with_children(|parent| {
+        }
+    ).with_children(|parent| {
         // Spawn cube button
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(220.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::DARK_GREEN.into(),
                 ..default()
             },
             SpawnCubeButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
-                format!("Spawn tank (-{} $, -{} wood, -{} iron, -{} oil)", 
-                    PurchasableItem::Tank.cost(), 
-                    PurchasableItem::Tank.wood_cost(), 
-                    PurchasableItem::Tank.iron_cost(),
-                    PurchasableItem::Tank.oil_cost()),
+                format!("Spawn cube (-{})", PurchasableItem::Tank.cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
         });
         
-        // Spawn sphere button
+        // Spawn infantry button
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(180.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: BUTTON_BLUE.into(),
                 ..default()
             },
-            SpawnSphereButton,
+            SpawnInfantryButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
-                format!("Spawn sphere (-{})", PurchasableItem::Sphere.cost()),
+                format!("Spawn infantry (-{})", PurchasableItem::Infantry.cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -391,15 +402,17 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(180.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::rgb(0.7, 0.7, 0.7).into(),
                 ..default()
             },
             SpawnAirplaneButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
                 format!("Spawn airplane (-{} $, -{} steel, -{} oil)", 
@@ -408,7 +421,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     PurchasableItem::Airplane.oil_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -418,21 +431,23 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(270.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::rgb(0.0, 0.0, 0.8).into(),
                 ..default()
             },
             SpawnMineButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
                 format!("Spawn mine (-{} $, -{} wood)", PurchasableItem::Mine.cost(), PurchasableItem::Mine.wood_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -442,21 +457,23 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(270.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::rgb(0.6, 0.3, 0.1).into(),
                 ..default()
             },
             SpawnSteelFactoryButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
                 format!("Spawn steel factory (-{} $, -{} wood, -{} iron)", PurchasableItem::SteelFactory.cost(), PurchasableItem::SteelFactory.wood_cost(), PurchasableItem::SteelFactory.iron_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -466,15 +483,17 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(270.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::rgb(0.0, 0.0, 0.8).into(),
                 ..default()
             },
             SpawnPetrochemicalPlantButton,
+            OnGameScreen,
         )).with_children(|b| {
             b.spawn(TextBundle::from_section(
                 format!("Spawn petrochemical plant (-{} $, -{} wood, -{} steel)", 
@@ -483,7 +502,33 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     PurchasableItem::PetrochemicalPlant.steel_cost()),
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
+
+        // Spawn trench button
+        parent.spawn((
+            ButtonBundle {
+                style: Style {
+                    width: Val::Px(200.0),
+                    height: Val::Px(40.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: BUTTON_BLUE.into(),
+                ..default()
+            },
+            SpawnTrenchButton,
+            OnGameScreen,
+        )).with_children(|b| {
+            b.spawn(TextBundle::from_section(
+                format!("Spawn trench (-{}$, -{}🪵)", PurchasableItem::Trench.cost(), PurchasableItem::Trench.wood_cost()),
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -493,9 +538,10 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(180.0),
+                    width: Val::Px(200.0),
                     height: Val::Px(40.0),
-                    margin: UiRect::all(Val::Px(5.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: Color::RED.into(),
@@ -507,7 +553,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 "Exit to Menu",
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::WHITE,
                 },
             ));
@@ -627,7 +673,7 @@ fn update_game_time(
     }
 }
 
-// Handle button presses for spawning tank/sphere/airplane
+// Handle button presses for spawning tank/infantry/airplane
 fn handle_spawn_buttons(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -638,27 +684,29 @@ fn handle_spawn_buttons(
             &mut BackgroundColor,
             Entity,
             Option<&SpawnCubeButton>,
-            Option<&SpawnSphereButton>,
+            Option<&SpawnInfantryButton>,
             Option<&SpawnAirplaneButton>,
             Option<&SpawnMineButton>,
             Option<&SpawnSteelFactoryButton>,
-            Option<&SpawnPetrochemicalPlantButton>
+            Option<&SpawnPetrochemicalPlantButton>,
+            Option<&SpawnTrenchButton>
         ),
-        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnSphereButton>, With<SpawnAirplaneButton>, With<SpawnMineButton>, With<SpawnSteelFactoryButton>, With<SpawnPetrochemicalPlantButton>)>)
+        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnInfantryButton>, With<SpawnAirplaneButton>, With<SpawnMineButton>, With<SpawnSteelFactoryButton>, With<SpawnPetrochemicalPlantButton>, With<SpawnTrenchButton>)>)
     >,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
     mut iron: ResMut<Iron>,
     mut steel: ResMut<Steel>,
     mut oil: ResMut<Oil>,
+    time: Res<Time>,
 ) {
-    for (interaction, mut color, entity, is_cube, is_sphere, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant) in &mut interaction_query {
+    for (interaction, mut color, entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant, is_trench) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
                     PurchasableItem::Tank
-                } else if is_sphere.is_some() {
-                    PurchasableItem::Sphere
+                } else if is_infantry.is_some() {
+                    PurchasableItem::Infantry
                 } else if is_airplane.is_some() {
                     PurchasableItem::Airplane
                 } else if is_mine.is_some() {
@@ -667,6 +715,8 @@ fn handle_spawn_buttons(
                     PurchasableItem::SteelFactory
                 } else if is_petrochemical_plant.is_some() {
                     PurchasableItem::PetrochemicalPlant
+                } else if is_trench.is_some() {
+                    PurchasableItem::Trench
                 } else {
                     continue;
                 };
@@ -680,15 +730,45 @@ fn handle_spawn_buttons(
                     oil.0 -= item.oil_cost();
                     spawn_shape(&mut commands, &mut meshes, &mut materials, item.shape_type());
                 }
+
+                // Добавляем обработку постройки окопа
+                if is_trench.is_some() {
+                    if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
+                        money.0 -= item.cost();
+                        wood.0 -= item.wood_cost();
+                        
+                        // Определяем положение для окопа
+                        let seed = time.elapsed_seconds_f64().fract() as f32;
+                        let x = (seed * 100.0).sin() * 10.0 - 5.0;
+                        let z = (seed * 100.0).cos() * 10.0 - 5.0;
+                        let trench_position = Vec3::new(x, 0.0, z);
+                        
+                        info!("Spawning new trench at position: {:?}", trench_position);
+                        
+                        crate::game::spawn_constructing_trench(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            trench_position,
+                        );
+                    } else {
+                        info!("Not enough resources to build a trench!");
+                    }
+                }
+
                 *color = Color::GRAY.into();
             }
             Interaction::Hovered => {
                 *color = Color::ORANGE_RED.into();
+                
+                if is_trench.is_some() {
+                    *color = BUTTON_BLUE.into();
+                }
             }
             Interaction::None => {
                 if is_cube.is_some() {
                     *color = Color::DARK_GREEN.into();
-                } else if is_sphere.is_some() {
+                } else if is_infantry.is_some() {
                     *color = BUTTON_BLUE.into();
                 } else if is_airplane.is_some() {
                     *color = Color::rgb(0.7, 0.7, 0.7).into();
@@ -698,6 +778,8 @@ fn handle_spawn_buttons(
                     *color = Color::rgb(0.6, 0.3, 0.1).into();
                 } else if is_petrochemical_plant.is_some() {
                     *color = Color::rgb(0.0, 0.0, 0.8).into();
+                } else if is_trench.is_some() {
+                    *color = BUTTON_BLUE.into();
                 }
             }
         }
@@ -862,7 +944,7 @@ fn spawn_shape(
                 Name::new("Tank"),
             ));
         }
-        ShapeType::Sphere => {
+        ShapeType::Infantry => {
             commands.spawn((
                 PbrBundle {
                     mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
@@ -874,19 +956,21 @@ fn spawn_shape(
                     ..default()
                 },
                 shape_type,
-                crate::game::components::Selectable,
-                crate::game::components::HoveredOutline,
-                crate::game::components::MovementOrder(Vec3::ZERO),
-                crate::game::components::Health {
-                    current: 50.0,
-                    max: 50.0,
+                crate::game::Selectable,
+                crate::game::HoveredOutline,
+                crate::game::MovementOrder(Vec3::ZERO),
+                PickableBundle::default(),
+                crate::game::Health {
+                    current: 60.0,
+                    max: 60.0,
                 },
-                crate::game::components::CanShoot {
-                    cooldown: 0.7,
+                crate::game::CanShoot {
+                    cooldown: 0.8,
                     last_shot: 0.0,
-                    range: 15.0,
+                    range: 12.0,
                     damage: 8.0,
                 },
+                Name::new("Infantry"),
             ));
         }
         ShapeType::Airplane => {
@@ -980,6 +1064,21 @@ fn spawn_shape(
                 materials,
                 Vec3::new(10.0, 0.0, -5.0),
             );
+        }
+        ShapeType::Trench => {
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 1.5))),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.5, 0.35, 0.15),
+                        ..default()
+                    }),
+                    transform: Transform::from_xyz(0.0, 0.25, 0.0),
+                    ..default()
+                },
+                shape_type,
+                Name::new("Trench"),
+            ));
         }
     }
 } 
