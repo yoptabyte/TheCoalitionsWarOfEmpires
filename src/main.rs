@@ -19,6 +19,7 @@ use input::*;
 use systems::*;
 use utils::*;
 use ui::*;
+use input::selection::ProcessedClicks;
 
 /// Marker for UI camera to allow removing it when transitioning to game
 #[derive(Component)]
@@ -38,6 +39,7 @@ fn main() {
         .init_resource::<SelectedEntity>()
         .init_resource::<CameraSettings>()
         .init_resource::<CameraMovementState>()
+        .init_resource::<ProcessedClicks>()
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
@@ -45,12 +47,13 @@ fn main() {
         .add_systems(
             Update, 
             (
+                clear_processed_clicks,
                 process_movement_orders,
                 draw_click_circle,
                 draw_movement_lines,
                 select_entity_system.after(PickSet::Last),
-                handle_ground_clicks.after(select_entity_system),
                 handle_placement_clicks,
+                handle_ground_clicks.after(handle_placement_clicks),
                 handle_attacks.after(select_entity_system),
                 update_projectiles,
                 draw_hover_outline,
@@ -74,7 +77,6 @@ fn setup_ui_camera(mut commands: Commands) {
     commands.spawn((Camera2dBundle::default(), UICamera));
 }
 
-// Сброс состояния размещения при выходе из игры
 fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
     placement_state.active = false;
     placement_state.shape_type = None;

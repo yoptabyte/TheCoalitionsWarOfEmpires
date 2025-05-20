@@ -171,27 +171,27 @@ pub fn handle_trench_damage(
     mut enemy_query: Query<(&Transform, &mut Health), (With<Enemy>, With<ShapeType>)>,
     time: Res<Time>,
 ) {
-    // Базовая реализация для будущего добавления полной функциональности
-    // В будущем здесь будет:
-    // 1. Проверка расстояния от врагов до окопов
-    // 2. Если враг атакует окоп (находится рядом), то окоп наносит урон
-    // 3. Реализация здоровья окопа и его разрушения
+    // Basic implementation for future addition of full functionality
+    // In the future there will be:
+    // 1. Checking distance from enemies to trenches
+    // 2. If enemy attacks trench (is nearby), trench deals damage
+    // 3. Implementation of trench health and destruction
 
-    // Примечание: полную функциональность добавим позже, как указано в требованиях
+    // Note: full functionality will be added later as specified in requirements
     
     for trench_transform in trench_query.iter() {
         let trench_pos = trench_transform.translation;
         
-        // Временно просто логируем информацию о наличии окопа для отладки
+        // Temporarily just logging trench position info for debugging
         info!("Trench is at position: {:?}", trench_pos);
         
-        // Проверяем всех врагов типа Infantry в радиусе 3 единиц от окопа
+        // Check all Infantry type enemies within 3 units radius of trench
         for (enemy_transform, mut _health) in enemy_query.iter_mut() {
             let enemy_pos = enemy_transform.translation;
             let distance = trench_pos.distance(enemy_pos);
             
             if distance < 3.0 {
-                // В будущем здесь будет:
+                // In the future here will be:
                 // health.current -= 1.0 * time.delta_seconds();
                 info!("Enemy is near trench at position: {:?}, distance: {}", enemy_pos, distance);
             }

@@ -16,7 +16,6 @@ use crate::game_plugin::OnGameScreen;
 #[derive(Component)]
 pub struct UICamera;
 
-/// Система, отображающая информацию о текущем состоянии размещения объекта
 pub fn show_placement_state(
     placement_state: Res<crate::game::PlacementState>,
     mut commands: Commands,
@@ -24,17 +23,14 @@ pub fn show_placement_state(
     node_query: Query<Entity, With<PlacementStateText>>,
     root_node_query: Query<Entity, With<OnGameScreen>>,
 ) {
-    // Удаляем предыдущий текст, если он был
     for entity in node_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
     
-    // Если режим размещения неактивен, не показываем текст
     if !placement_state.active || placement_state.shape_type.is_none() {
         return;
     }
     
-    // Определяем тип объекта
     let object_type = match placement_state.shape_type.unwrap() {
         crate::game::ShapeType::Cube => "Танк",
         crate::game::ShapeType::Infantry => "Пехота",
@@ -47,7 +43,6 @@ pub fn show_placement_state(
         crate::game::ShapeType::Trench => "Окоп",
     };
     
-    // Ищем корневой узел UI
     if let Ok(root) = root_node_query.get_single() {
         commands.entity(root).with_children(|parent| {
             parent.spawn((
@@ -72,7 +67,6 @@ pub fn show_placement_state(
     }
 }
 
-/// Маркер для текста состояния размещения
 #[derive(Component)]
 pub struct PlacementStateText;
 

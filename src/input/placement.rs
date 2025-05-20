@@ -6,12 +6,12 @@ use crate::game::{Ground, ClickCircle, ShapeType};
 use crate::input::MouseWorldPosition;
 use crate::ui::money_ui::place_shape;
 
-/// Система для обновления позиции объектов ожидающих размещения
+/// System for updating the position of objects waiting for placement
 pub fn update_pending_placement_position(
     mouse_world_position: Res<MouseWorldPosition>,
     mut query: Query<(&mut Transform, &ShapeType), With<PlacementPending>>,
 ) {
-    // Если нет позиции мыши, выходим
+    // If there's no mouse position, exit
     if mouse_world_position.0.is_none() {
         return;
     }
@@ -19,7 +19,7 @@ pub fn update_pending_placement_position(
     let mouse_pos = mouse_world_position.0.unwrap();
     
     for (mut transform, shape_type) in query.iter_mut() {
-        // Рассчитываем базовую высоту в зависимости от типа объекта
+        // Calculate base height depending on object type
         let base_height = match shape_type {
             ShapeType::Cube => 0.5,
             ShapeType::Infantry => 0.5,
@@ -32,7 +32,7 @@ pub fn update_pending_placement_position(
             ShapeType::Trench => 0.25,
         };
         
-        // Устанавливаем позицию объекта под курсором
+        // Set object position under cursor
         transform.translation = Vec3::new(
             mouse_pos.x,
             base_height,
@@ -41,9 +41,9 @@ pub fn update_pending_placement_position(
     }
 }
 
-/// Система для обработки клика по земле при размещении нового объекта
-/// ВАЖНО: Эта система обрабатывает ТОЛЬКО клики для размещения новых объектов,
-/// а не для перемещения существующих (которые обрабатываются в handle_ground_clicks)
+/// System for handling ground clicks when placing a new object
+/// IMPORTANT: This system only handles clicks for placing new objects,
+/// not for moving existing ones (which are handled in handle_ground_clicks)
 pub fn handle_placement_clicks(
     mut commands: Commands,
     mut click_events: EventReader<Pointer<Click>>,
@@ -55,13 +55,13 @@ pub fn handle_placement_clicks(
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
 ) {
-    // Обработаем сначала случай, когда есть ожидающая покупка (PendingPurchase)
+    // First handle the case when there is a pending purchase (PendingPurchase)
     if pending_purchase.shape_type.is_some() {
         let mut clicked_on_ground = false;
         let mut ground_click_position: Option<Vec3> = None;
         
         for event in click_events.read() {
-            // Обрабатываем только левые клики
+            // Only process left clicks
             if event.button != PointerButton::Primary {
                 continue;
             }
@@ -82,11 +82,11 @@ pub fn handle_placement_clicks(
         if clicked_on_ground && ground_click_position.is_some() {
             let target_position = ground_click_position.unwrap();
             
-            // Используем as_ref() для получения ссылки, а не владения
+            // Use as_ref() to get a reference instead of ownership
             if let Some(shape_type) = pending_purchase.shape_type.as_ref() {
                 info!("handle_placement_clicks: Placing new object of type {:?} at position {:?}", shape_type, target_position);
                 
-                // Создаем объект на позиции клика, используя упрощенную функцию
+                // Create object at click position using simplified function
                 place_shape(
                     &mut commands, 
                     shape_type.clone(), 
@@ -95,22 +95,22 @@ pub fn handle_placement_clicks(
                     &mut materials
                 );
                 
-                // Обновляем информацию для отображения круга клика
+                // Update click circle display information
                 click_circle.position = Some(target_position);
                 click_circle.spawn_time = Some(time.elapsed_seconds());
                 
-                // Сбрасываем ожидающую покупку
+                // Reset pending purchase
                 pending_purchase.shape_type = None;
                 pending_purchase.cost_paid = false;
                 
                 info!("handle_placement_clicks: Object placed successfully, placement mode deactivated");
-                return; // Выходим, так как покупка уже обработана
+                return; // Exit since purchase has been handled
             }
         }
     }
     
-    // Если нет объектов с компонентом PlacementPending, выходим
-    // Это ветка для обратной совместимости
+    // If there are no objects with PlacementPending component, exit
+    // This branch is for backward compatibility
     if pending_placement_query.is_empty() {
         return;
     }
@@ -121,7 +121,7 @@ pub fn handle_placement_clicks(
     let mut ground_click_position: Option<Vec3> = None;
     
     for event in click_events.read() {
-        // Обрабатываем только левые клики
+        // Only process left clicks
         if event.button != PointerButton::Primary {
             continue;
         }
@@ -142,19 +142,19 @@ pub fn handle_placement_clicks(
     if clicked_on_ground && ground_click_position.is_some() {
         let target_position = ground_click_position.unwrap();
         
-        // Получаем первый объект, ожидающий размещения
+        // Get first object waiting for placement
         if let Some((entity, shape_type)) = pending_placement_query.iter().next() {
             info!("handle_placement_clicks: Placing object of type {:?} at position {:?}", shape_type, target_position);
             
-            // Удаляем компонент ожидания размещения и обновляем позицию
+            // Remove placement pending component and update position
             commands.entity(entity)
                 .remove::<PlacementPending>();
             
-            // Устанавливаем позицию объекта
+            // Set object position
             commands.entity(entity)
                 .insert(Transform::from_translation(target_position));
             
-            // Обновляем информацию для отображения круга клика
+            // Update click circle display information
             click_circle.position = Some(target_position);
             click_circle.spawn_time = Some(time.elapsed_seconds());
         }

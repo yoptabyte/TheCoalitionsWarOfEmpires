@@ -9,6 +9,13 @@ use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle
 #[derive(Resource, Default)]
 pub struct MouseWorldPosition(pub Option<Vec3>);
 
+/// Resource for tracking processed clicks
+#[derive(Resource, Default)]
+pub struct ProcessedClicks {
+    /// IDs of clicks that have already been processed
+    pub processed_ids: Vec<PointerId>,
+}
+
 /// system for selecting an entity
 pub fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
@@ -87,7 +94,7 @@ pub fn update_mouse_world_position(
     // If we couldn't get a valid position, don't change the existing one
 }
 
-/// processing ground clicks для перемещения (существующих объектов)
+/// processing ground clicks for moving existing objects
 pub fn handle_ground_clicks(
     mut commands: Commands,
     mut click_events: EventReader<Pointer<Click>>,
@@ -104,8 +111,9 @@ pub fn handle_ground_clicks(
     click_effect_handle: Res<ClickEffectHandle>,
     selected_entity_res: Res<SelectedEntity>,
     placement_state: Res<crate::game::PlacementState>,
+    processed_clicks: Res<ProcessedClicks>,
 ) {
-    // Если активен режим размещения, это обрабатывается в другой системе
+    // If placement mode is active, this is handled in another system
     if placement_state.active {
         return;
     }
@@ -117,6 +125,12 @@ pub fn handle_ground_clicks(
     for event in click_events.read() {
         // processing only left mouse clicks
         if event.button != PointerButton::Primary {
+            continue;
+        }
+        
+        // Check if click was already processed by placement system
+        if processed_clicks.processed_ids.contains(&event.pointer_id) {
+            info!("handle_ground_clicks: Skipping already processed click event {:?}", event.pointer_id);
             continue;
         }
         
@@ -138,11 +152,11 @@ pub fn handle_ground_clicks(
         }
     }
     
-    // Логика для определения клика по земле для перемещения
+    // Logic for determining ground click for movement
     if !clicked_on_selectable && clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
         let target_point = ground_click_position.unwrap();
         
-        // Добавим логирование для отладки
+        // Add logging for debugging
         info!("handle_ground_clicks: Valid ground click detected at position {:?}", target_point);
         
         if let Some(entity_to_move) = selected_entity_res.0 {
@@ -155,14 +169,14 @@ pub fn handle_ground_clicks(
                query_petrochemical_plant.get(entity_to_move).is_err() {
                 info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
                 
-                // Отправляем команду на перемещение
+                // Send movement command
                 commands.entity(entity_to_move).insert(MovementOrder(target_point));
                 
-                // Обновляем информацию для отображения круга клика
+                // Update click circle display info
                 click_circle.position = Some(target_point);
                 click_circle.spawn_time = Some(time.elapsed_seconds());
                 
-                // Создаем эффект частиц в месте клика
+                // Create particle effect at click location
                 commands.spawn((
                     Name::new("click_particles"),
                     ParticleEffectBundle {
@@ -191,7 +205,7 @@ pub fn handle_ground_clicks(
     } else if clicked_on_selectable {
         click_circle.position = None;
     } else {
-        // Логирование пропущенного клика для отладки
+        // Log skipped click for debugging
         if !clicked_on_ground && !clicked_on_selectable {
             info!("handle_ground_clicks: Click not registered on ground or selectable object");
         } else if selected_entity_res.0.is_none() {
@@ -202,7 +216,7 @@ pub fn handle_ground_clicks(
     }
 }
 
-/// Система для обработки кликов при размещении объектов
+/// System for handling clicks during object placement
 pub fn handle_placement_clicks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -213,8 +227,9 @@ pub fn handle_placement_clicks(
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
     mut placement_state: ResMut<crate::game::PlacementState>,
+    mut processed_clicks: ResMut<ProcessedClicks>,
 ) {
-    // Если режим размещения не активен, выходим
+    // If placement mode is not active, exit
     if !placement_state.active || placement_state.shape_type.is_none() {
         return;
     }
@@ -223,7 +238,7 @@ pub fn handle_placement_clicks(
     let mut ground_click_position: Option<Vec3> = None;
     
     for event in click_events.read() {
-        // обрабатываем только клики левой кнопкой мыши
+        // process only left mouse button clicks
         if event.button != PointerButton::Primary {
             continue;
         }
@@ -233,18 +248,21 @@ pub fn handle_placement_clicks(
             if let Some(position) = event.hit.position {
                 ground_click_position = Some(position);
                 info!("handle_placement_clicks: clicked on ground at position {:?}", position);
+                
+                // Remember click event ID to avoid processing it again
+                processed_clicks.processed_ids.push(event.pointer_id);
             }
         }
     }
     
-    // Размещаем объект, если кликнули по земле
+    // Place object if clicked on ground
     if clicked_on_ground && ground_click_position.is_some() {
         let target_point = ground_click_position.unwrap();
         let shape_type = placement_state.shape_type.unwrap();
         
         info!("handle_placement_clicks: Placing object of type {:?} at position {:?}", shape_type, target_point);
         
-        // Создаем объект на основе его типа в позиции клика
+        // Create object based on its type at click position
         match shape_type {
             ShapeType::Cube => {
                 commands.spawn((
@@ -406,11 +424,11 @@ pub fn handle_placement_clicks(
             }
         }
         
-        // Сбрасываем режим размещения после успешного спавна
+        // Reset placement mode after successful spawn
         placement_state.active = false;
         placement_state.shape_type = None;
         
-        // Создаем эффект частиц в месте клика
+        // Create particle effect at click location
         commands.spawn((
             Name::new("placement_particles"),
             ParticleEffectBundle {
@@ -420,7 +438,7 @@ pub fn handle_placement_clicks(
             },
         ));
         
-        // Устанавливаем позицию для отображения круга клика
+        // Set position for click circle display
         click_circle.position = Some(target_point);
         click_circle.spawn_time = Some(time.elapsed_seconds());
     }
