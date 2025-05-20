@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use super::components::ShapeType;
 
 /// resource for storing the selected entity
 #[derive(Resource, Default)]
@@ -38,6 +39,15 @@ pub struct CameraMovementState {
 #[derive(Resource)]
 pub struct FarmIncomeTimer {
     pub timer: Timer,
+}
+
+/// Ресурс для отслеживания состояния размещения объекта
+#[derive(Resource, Default)]
+pub struct PlacementState {
+    /// Тип объекта для размещения (None если нет активного размещения)
+    pub shape_type: Option<ShapeType>,
+    /// Флаг, указывающий, что активен режим размещения
+    pub active: bool,
 }
 
 impl Default for FarmIncomeTimer {

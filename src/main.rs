@@ -11,7 +11,7 @@ mod systems;
 mod utils;
 mod ui;
 
-use menu::common::{GameState, MenuState, DisplayQuality, Volume};
+use menu::common::{GameState, DisplayQuality, Volume};
 use ui::menu::menu_plugin;
 use ui::splash::splash_plugin;
 use game::*;
@@ -50,6 +50,7 @@ fn main() {
                 draw_movement_lines,
                 select_entity_system.after(PickSet::Last),
                 handle_ground_clicks.after(select_entity_system),
+                handle_placement_clicks,
                 handle_attacks.after(select_entity_system),
                 update_projectiles,
                 draw_hover_outline,
@@ -64,6 +65,7 @@ fn main() {
                 systems::combat::handle_trench_damage,
             ).run_if(in_state(GameState::Game))
         )
+        .add_systems(OnExit(GameState::Game), reset_placement_state)
         .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))
         .run();
 }
@@ -72,10 +74,16 @@ fn setup_ui_camera(mut commands: Commands) {
     commands.spawn((Camera2dBundle::default(), UICamera));
 }
 
+// Сброс состояния размещения при выходе из игры
+fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
+    placement_state.active = false;
+    placement_state.shape_type = None;
+}
+
 pub mod game_plugin {
     use bevy::prelude::*;
     use crate::{
-        menu::common::{GameState, DisplayQuality, Volume, despawn_screen},
+        menu::common::{GameState, despawn_screen},
         systems::aircraft::spawn_initial_aircraft,
     };
 

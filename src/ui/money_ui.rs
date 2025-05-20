@@ -698,6 +698,7 @@ fn handle_spawn_buttons(
     mut iron: ResMut<Iron>,
     mut steel: ResMut<Steel>,
     mut oil: ResMut<Oil>,
+    mut placement_state: ResMut<crate::game::PlacementState>,
     time: Res<Time>,
 ) {
     for (interaction, mut color, entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant, is_trench) in &mut interaction_query {
@@ -723,15 +724,21 @@ fn handle_spawn_buttons(
 
                 // Check if player has enough resources
                 if money.0 >= item.cost() && wood.0 >= item.wood_cost() && iron.0 >= item.iron_cost() && steel.0 >= item.steel_cost() && oil.0 >= item.oil_cost() {
+                    // Устанавливаем состояние размещения объекта
+                    placement_state.active = true;
+                    placement_state.shape_type = Some(item.shape_type());
+                    
+                    // Снимаем ресурсы заранее
                     money.0 -= item.cost();
                     wood.0 -= item.wood_cost();
                     iron.0 -= item.iron_cost();
                     steel.0 -= item.steel_cost();
                     oil.0 -= item.oil_cost();
-                    spawn_shape(&mut commands, &mut meshes, &mut materials, item.shape_type());
+                    
+                    info!("Placement mode activated for {:?}", item.shape_type());
                 }
 
-                // Добавляем обработку постройки окопа
+                // Обработка размещения окопа отдельно (сохраняем оригинальный код)
                 if is_trench.is_some() {
                     if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
                         money.0 -= item.cost();

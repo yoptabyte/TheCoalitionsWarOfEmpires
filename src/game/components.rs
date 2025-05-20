@@ -25,7 +25,7 @@ pub struct MainCamera;
 pub struct MovementOrder(pub Vec3);
 
 /// component for storing the shape type of an object
-#[derive(Component)]
+#[derive(Component, Debug, Clone, Copy)]
 pub enum ShapeType {
     Cube,
     Infantry,

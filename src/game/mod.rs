@@ -25,6 +25,7 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<Steel>()
         .init_resource::<Oil>()
         .init_resource::<TrenchCost>()
+        .init_resource::<PlacementState>()
         // Farm systems
         .add_systems(Update, update_farm_income.run_if(in_state(GameState::Game)))
         .add_systems(Update, handle_farm_clicks.run_if(in_state(GameState::Game)))

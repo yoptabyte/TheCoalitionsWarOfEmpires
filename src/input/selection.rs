@@ -1,11 +1,9 @@
 use bevy::prelude::*;
-use bevy::input::mouse::MouseButton;
-use bevy::input::keyboard::KeyCode;
 use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType};
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
@@ -89,7 +87,7 @@ pub fn update_mouse_world_position(
     // If we couldn't get a valid position, don't change the existing one
 }
 
-/// processing ground clicks
+/// processing ground clicks для перемещения (существующих объектов)
 pub fn handle_ground_clicks(
     mut commands: Commands,
     mut click_events: EventReader<Pointer<Click>>,
@@ -105,7 +103,13 @@ pub fn handle_ground_clicks(
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
     selected_entity_res: Res<SelectedEntity>,
+    placement_state: Res<crate::game::PlacementState>,
 ) {
+    // Если активен режим размещения, это обрабатывается в другой системе
+    if placement_state.active {
+        return;
+    }
+
     let mut clicked_on_selectable = false;
     let mut clicked_on_ground = false;
     let mut ground_click_position: Option<Vec3> = None;
@@ -134,7 +138,7 @@ pub fn handle_ground_clicks(
         }
     }
     
-    // Улучшенная логика для определения клика по земле
+    // Логика для определения клика по земле для перемещения
     if !clicked_on_selectable && clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
         let target_point = ground_click_position.unwrap();
         
@@ -195,5 +199,229 @@ pub fn handle_ground_clicks(
         } else if ground_click_position.is_none() && clicked_on_ground {
             info!("handle_ground_clicks: Click registered on ground but position is None");
         }
+    }
+}
+
+/// Система для обработки кликов при размещении объектов
+pub fn handle_placement_clicks(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut click_events: EventReader<Pointer<Click>>,
+    query_ground: Query<(), With<Ground>>,
+    mut click_circle: ResMut<ClickCircle>,
+    time: Res<Time>,
+    click_effect_handle: Res<ClickEffectHandle>,
+    mut placement_state: ResMut<crate::game::PlacementState>,
+) {
+    // Если режим размещения не активен, выходим
+    if !placement_state.active || placement_state.shape_type.is_none() {
+        return;
+    }
+
+    let mut clicked_on_ground = false;
+    let mut ground_click_position: Option<Vec3> = None;
+    
+    for event in click_events.read() {
+        // обрабатываем только клики левой кнопкой мыши
+        if event.button != PointerButton::Primary {
+            continue;
+        }
+        
+        if query_ground.get(event.target).is_ok() {
+            clicked_on_ground = true;
+            if let Some(position) = event.hit.position {
+                ground_click_position = Some(position);
+                info!("handle_placement_clicks: clicked on ground at position {:?}", position);
+            }
+        }
+    }
+    
+    // Размещаем объект, если кликнули по земле
+    if clicked_on_ground && ground_click_position.is_some() {
+        let target_point = ground_click_position.unwrap();
+        let shape_type = placement_state.shape_type.unwrap();
+        
+        info!("handle_placement_clicks: Placing object of type {:?} at position {:?}", shape_type, target_point);
+        
+        // Создаем объект на основе его типа в позиции клика
+        match shape_type {
+            ShapeType::Cube => {
+                commands.spawn((
+                    PbrBundle {
+                        mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
+                        material: materials.add(StandardMaterial {
+                            base_color: Color::rgb(0.8, 0.7, 0.6),
+                            ..default()
+                        }),
+                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 0.5, 0.0)),
+                        ..default()
+                    },
+                    shape_type,
+                    crate::game::components::Selectable,
+                    crate::game::components::HoveredOutline,
+                    crate::game::components::Health {
+                        current: 100.0,
+                        max: 100.0,
+                    },
+                    crate::game::components::CanShoot {
+                        cooldown: 1.0,
+                        last_shot: 0.0,
+                        range: 10.0,
+                        damage: 10.0,
+                    },
+                    crate::game::components::Tank,
+                    PickableBundle::default(),
+                    Name::new("Tank"),
+                ));
+            }
+            ShapeType::Infantry => {
+                commands.spawn((
+                    PbrBundle {
+                        mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
+                        material: materials.add(StandardMaterial {
+                            base_color: Color::rgb(0.2, 0.5, 0.8),
+                            ..default()
+                        }),
+                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 0.5, 0.0)),
+                        ..default()
+                    },
+                    shape_type,
+                    crate::game::Selectable,
+                    crate::game::HoveredOutline,
+                    PickableBundle::default(),
+                    crate::game::Health {
+                        current: 60.0,
+                        max: 60.0,
+                    },
+                    crate::game::CanShoot {
+                        cooldown: 0.8,
+                        last_shot: 0.0,
+                        range: 12.0,
+                        damage: 8.0,
+                    },
+                    Name::new("Infantry"),
+                ));
+            }
+            ShapeType::Airplane => {
+                commands.spawn((
+                    PbrBundle {
+                        mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 4.0))),
+                        material: materials.add(StandardMaterial {
+                            base_color: Color::rgb(0.8, 0.8, 0.8),
+                            ..default()
+                        }),
+                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 10.0, 0.0)),
+                        ..default()
+                    },
+                    shape_type,
+                    crate::game::components::Selectable,
+                    crate::game::components::HoveredOutline,
+                    PickableBundle::default(),
+                    crate::game::components::Aircraft {
+                        height: 10.0,
+                        speed: 5.0,
+                    },
+                    crate::game::components::Health {
+                        current: 75.0,
+                        max: 75.0,
+                    },
+                    crate::game::components::CanShoot {
+                        cooldown: 0.5,
+                        last_shot: 0.0,
+                        range: 20.0,
+                        damage: 15.0,
+                    },
+                ));
+            }
+            ShapeType::Tower => {
+                commands.spawn((
+                    PbrBundle {
+                        mesh: meshes.add(Mesh::from(Cuboid::new(1.5, 3.0, 1.5))),
+                        material: materials.add(StandardMaterial {
+                            base_color: Color::rgb(0.5, 0.5, 0.5),
+                            ..default()
+                        }),
+                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 1.5, 0.0)),
+                        ..default()
+                    },
+                    shape_type,
+                    crate::game::components::Selectable,
+                    crate::game::components::HoveredOutline,
+                    PickableBundle::default(),
+                    crate::game::components::Tower {
+                        height: 3.0,
+                    },
+                    crate::game::components::Health {
+                        current: 200.0,
+                        max: 200.0,
+                    },
+                    crate::game::components::CanShoot {
+                        cooldown: 2.0,
+                        last_shot: 0.0,
+                        range: 25.0,
+                        damage: 20.0,
+                    },
+                ));
+            }
+            ShapeType::Farm => {
+                crate::game::farm::spawn_forest_farm(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    target_point,
+                );
+            }
+            ShapeType::Mine => {
+                crate::game::mine::spawn_inactive_mine(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    target_point,
+                );
+            }
+            ShapeType::SteelFactory => {
+                crate::game::steel_factory::spawn_inactive_steel_factory(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    target_point,
+                );
+            }
+            ShapeType::PetrochemicalPlant => {
+                crate::game::petrochemical_plant::spawn_inactive_petrochemical_plant(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    target_point,
+                );
+            }
+            ShapeType::Trench => {
+                crate::game::spawn_constructing_trench(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    target_point,
+                );
+            }
+        }
+        
+        // Сбрасываем режим размещения после успешного спавна
+        placement_state.active = false;
+        placement_state.shape_type = None;
+        
+        // Создаем эффект частиц в месте клика
+        commands.spawn((
+            Name::new("placement_particles"),
+            ParticleEffectBundle {
+                effect: ParticleEffect::new(click_effect_handle.0.clone()),
+                transform: Transform::from_translation(target_point),
+                ..default()
+            },
+        ));
+        
+        // Устанавливаем позицию для отображения круга клика
+        click_circle.position = Some(target_point);
+        click_circle.spawn_time = Some(time.elapsed_seconds());
     }
 }
