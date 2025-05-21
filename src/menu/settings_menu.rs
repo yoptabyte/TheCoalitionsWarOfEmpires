@@ -58,9 +58,9 @@ pub fn settings_menu_setup(mut commands: Commands, asset_server: Res<AssetServer
                 TextBundle::from_section(
                     "Settings",
                     TextStyle {
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                         font_size: 80.0,
                         color: TEXT_COLOR,
-                        ..default()
                     },
                 )
                 .with_style(Style {
