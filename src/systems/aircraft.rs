@@ -34,7 +34,7 @@ pub fn spawn_initial_aircraft(
 ) {
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Box::new(2.0, 0.5, 4.0))),
+            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 4.0))),
             material: materials.add(StandardMaterial {
                 base_color: Color::rgb(0.8, 0.8, 0.8),
                 ..default()

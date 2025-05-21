@@ -219,7 +219,7 @@ pub fn spawn_petrochemical_plant_on_keystroke(
             // Spawn the petrochemical plant at a predetermined position
             let position = Vec3::new(10.0, 0.0, 5.0);
             
-            // Сразу создаем активный завод, а не неактивный
+            // Immediately create an active plant, not an inactive one
             spawn_active_petrochemical_plant(
                 &mut commands,
                 &mut meshes,

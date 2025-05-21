@@ -1,21 +1,68 @@
-use bevy::{
-    app::AppExit,
-    prelude::*,
-};
-
+use bevy::{app::AppExit, prelude::*};
 use super::common::*;
-use crate::game;
-
-const CRIMSON: Color = Color::rgb(0.86, 0.08, 0.24);
 
 #[derive(Component)]
 pub struct OnMainMenuScreen;
+
+#[derive(Component)]
+pub struct WorldModel;
+
+#[derive(Component)]
+pub struct MenuCamera;
 
 pub fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>) {
     menu_state.set(MenuState::Main);
 }
 
 pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let world_model = asset_server.load("textures/WorldWar.glb#Scene0");
+    let logo = asset_server.load("pic/logo.png");
+
+    // Set background color for the entire scene
+    commands.insert_resource(ClearColor(Color::hex("#0A1E3E").unwrap()));
+
+    // Spawn the 3D world model first
+    commands.spawn((
+        SceneBundle {
+            scene: world_model,
+            transform: Transform::from_xyz(0.0, 8.0, 0.0)
+                .with_scale(Vec3::splat(7.0))
+                .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            ..default()
+        },
+        WorldModel,
+        OnMainMenuScreen,
+    ));
+
+    // Add lighting for the 3D model
+    commands.spawn((
+        DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                illuminance: 600.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 100.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        OnMainMenuScreen,
+    ));
+
+    // Single 3D camera that can see both 3D model and UI
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(0.0, 10.0, 25.0)
+                .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
+            camera: Camera {
+                // Default priority
+                ..default()
+            },
+            ..default()
+        },
+        MenuCamera,
+        OnMainMenuScreen,
+    ));
+
     let button_style = Style {
         width: Val::Px(300.0),
         height: Val::Px(65.0),
@@ -24,138 +71,158 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         align_items: AlignItems::Center,
         ..default()
     };
-    
+
     let button_icon_style = Style {
         width: Val::Px(30.0),
         position_type: PositionType::Absolute,
         left: Val::Px(10.0),
         ..default()
     };
-    
+
     let button_text_style = TextStyle {
+        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
         font_size: 33.0,
-        ..default()
+        color: TEXT_COLOR,
     };
 
     let right_icon = asset_server.load("textures/Game Icons/right.png");
     let wrench_icon = asset_server.load("textures/Game Icons/wrench.png");
     let exit_icon = asset_server.load("textures/Game Icons/exitRight.png");
 
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            background_color: Color::rgb(0.1, 0.1, 0.1).into(),
-            ..default()
-        },
-        OnMainMenuScreen,
-    ))
-    .with_children(|parent| {
-        parent.spawn((
+    // UI root node with transparent background
+    commands
+        .spawn((
             NodeBundle {
                 style: Style {
-                    flex_direction: FlexDirection::Column,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
                     align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
                     ..default()
                 },
-                background_color: CRIMSON.into(),
+                // Transparent background to let the 3D model be visible
+                background_color: Color::NONE.into(),
                 ..default()
             },
+            OnMainMenuScreen,
         ))
         .with_children(|parent| {
-            parent.spawn((
-                TextBundle::from_section(
-                    "The Coalitions - War of Empires",
-                    TextStyle {
-                        font_size: 67.0,
-                        color: TEXT_COLOR,
+            // Logo container at the top
+            parent
+                .spawn((NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        height: Val::Auto,
+                        position_type: PositionType::Absolute,
+                        top: Val::Px(50.0), // Offset the logo downwards
+                        justify_content: JustifyContent::Center,
                         ..default()
                     },
-                )
-                .with_style(Style {
-                    margin: UiRect::all(Val::Px(50.0)),
+                    background_color: Color::NONE.into(),
                     ..default()
-                }),
-            ));
-            
-            parent.spawn((
-                ButtonBundle {
-                    style: button_style.clone(),
-                    background_color: NORMAL_BUTTON.into(),
-                    ..default()
-                },
-                MenuButtonAction::Play,
-            ))
-            .with_children(|parent| {
-                parent.spawn(ImageBundle {
-                    style: button_icon_style.clone(),
-                    image: right_icon.into(),
-                    ..default()
+                },))
+                .with_children(|parent| {
+                    parent.spawn(ImageBundle {
+                        style: Style {
+                            width: Val::Px(800.0), // Further increase the logo size
+                            margin: UiRect::all(Val::Px(0.0)),
+                            ..default()
+                        },
+                        image: UiImage::new(logo),
+                        ..default()
+                    });
                 });
-                parent.spawn(TextBundle::from_section(
-                    "New Game",
-                    TextStyle {
-                        font_size: button_text_style.font_size,
-                        color: TEXT_COLOR,
+
+            // Button container offset to the left
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::FlexStart, // Align to the left
+                        position_type: PositionType::Absolute, // Absolute positioning for buttons
+                        left: Val::Percent(5.0), // Shift further to the left
+                        top: Val::Vh(40.0), // Vertical position
                         ..default()
                     },
-                ));
-            });
-            
-            parent.spawn((
-                ButtonBundle {
-                    style: button_style.clone(),
-                    background_color: NORMAL_BUTTON.into(),
                     ..default()
-                },
-                MenuButtonAction::Settings,
-            ))
-            .with_children(|parent| {
-                parent.spawn(ImageBundle {
-                    style: button_icon_style.clone(),
-                    image: wrench_icon.into(),
-                    ..default()
+                })
+                .with_children(|parent| {
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::Play,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: right_icon.into(),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section(
+                                "New Game",
+                                TextStyle {
+                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                    font_size: button_text_style.font_size,
+                                    color: TEXT_COLOR,
+                                },
+                            ));
+                        });
+
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::Settings,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: wrench_icon.into(),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section(
+                                "Settings",
+                                TextStyle {
+                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                    font_size: button_text_style.font_size,
+                                    color: TEXT_COLOR,
+                                },
+                            ));
+                        });
+
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style,
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::Quit,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style,
+                                image: exit_icon.into(),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section(
+                                "Quit",
+                                TextStyle {
+                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                    font_size: button_text_style.font_size,
+                                    color: TEXT_COLOR,
+                                },
+                            ));
+                        });
                 });
-                parent.spawn(TextBundle::from_section(
-                    "Settings",
-                    TextStyle {
-                        font_size: button_text_style.font_size,
-                        color: TEXT_COLOR,
-                        ..default()
-                    },
-                ));
-            });
-            
-            parent.spawn((
-                ButtonBundle {
-                    style: button_style,
-                    background_color: NORMAL_BUTTON.into(),
-                    ..default()
-                },
-                MenuButtonAction::Quit,
-            ))
-            .with_children(|parent| {
-                parent.spawn(ImageBundle {
-                    style: button_icon_style,
-                    image: exit_icon.into(),
-                    ..default()
-                });
-                parent.spawn(TextBundle::from_section(
-                    "Quit",
-                    TextStyle {
-                        font_size: button_text_style.font_size,
-                        color: TEXT_COLOR,
-                        ..default()
-                    },
-                ));
-            });
         });
-    });
 }
 
 pub fn menu_action(
@@ -194,7 +261,6 @@ pub fn menu_action(
 }
 
 pub fn main_menu_plugin(app: &mut App) {
-    app
-        .add_systems(OnEnter(MenuState::Main), main_menu_setup)
+    app.add_systems(OnEnter(MenuState::Main), main_menu_setup)
         .add_systems(OnEnter(GameState::Menu), main_menu_setup);
-} 
+}

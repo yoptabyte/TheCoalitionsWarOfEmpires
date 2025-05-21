@@ -7,7 +7,7 @@ use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
-pub struct MouseWorldPosition(pub Option<Vec3>);
+pub struct MouseWorldPosition(#[allow(dead_code)] pub Option<Vec3>);
 
 /// Resource for tracking processed clicks
 #[derive(Resource, Default)]
@@ -54,6 +54,7 @@ pub fn select_entity_system(
 }
 
 /// system for updating mouse world position
+#[allow(dead_code)]
 pub fn update_mouse_world_position(
     mut mouse_position: ResMut<MouseWorldPosition>,
     camera: Query<(&Camera, &GlobalTransform), With<crate::game::MainCamera>>,

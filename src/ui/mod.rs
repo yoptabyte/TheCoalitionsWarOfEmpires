@@ -14,6 +14,7 @@ use crate::menu::common::GameState;
 use crate::game_plugin::OnGameScreen;
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct UICamera;
 
 pub fn show_placement_state(
@@ -32,24 +33,24 @@ pub fn show_placement_state(
     }
     
     let object_type = match placement_state.shape_type.unwrap() {
-        crate::game::ShapeType::Cube => "Танк",
-        crate::game::ShapeType::Infantry => "Пехота",
-        crate::game::ShapeType::Airplane => "Самолет",
-        crate::game::ShapeType::Tower => "Башня",
-        crate::game::ShapeType::Farm => "Ферма",
-        crate::game::ShapeType::Mine => "Шахта",
-        crate::game::ShapeType::SteelFactory => "Сталелитейный завод",
-        crate::game::ShapeType::PetrochemicalPlant => "Нефтехимический завод",
-        crate::game::ShapeType::Trench => "Окоп",
+        crate::game::ShapeType::Cube => "Tank",
+        crate::game::ShapeType::Infantry => "Infantry",
+        crate::game::ShapeType::Airplane => "Airplane",
+        crate::game::ShapeType::Tower => "Tower",
+        crate::game::ShapeType::Farm => "Farm",
+        crate::game::ShapeType::Mine => "Mine",
+        crate::game::ShapeType::SteelFactory => "Steel Factory",
+        crate::game::ShapeType::PetrochemicalPlant => "Petrochemical Plant",
+        crate::game::ShapeType::Trench => "Trench",
     };
     
     if let Ok(root) = root_node_query.get_single() {
         commands.entity(root).with_children(|parent| {
             parent.spawn((
                 TextBundle::from_section(
-                    format!("Выберите место для размещения: {}", object_type),
+                    format!("Select a placement location: {}", object_type),
                     TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                         font_size: 24.0,
                         color: Color::RED,
                     },

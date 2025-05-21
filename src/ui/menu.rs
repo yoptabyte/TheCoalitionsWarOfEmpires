@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::menu::{
-    common::{GameState, MenuState, DisplayQuality, Volume, despawn_screen},
+    common::{GameState, MenuState, despawn_screen},
     main_menu::{main_menu_plugin, menu_action, menu_setup, OnMainMenuScreen},
     settings_menu::{settings_menu_plugin, OnSettingsMenuScreen, OnDisplaySettingsMenuScreen, OnSoundSettingsMenuScreen},
 };

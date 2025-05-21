@@ -45,6 +45,7 @@ pub struct Enemy;
 /// marker for towers
 #[derive(Component)]
 pub struct Tower {
+    #[allow(dead_code)]
     pub height: f32,
 }
 

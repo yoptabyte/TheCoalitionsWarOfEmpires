@@ -74,7 +74,17 @@ fn main() {
 }
 
 fn setup_ui_camera(mut commands: Commands) {
-    commands.spawn((Camera2dBundle::default(), UICamera));
+    commands.spawn((
+        Camera2dBundle {
+            camera: Camera {
+                // Set higher priority so UI renders on top
+                order: 1,
+                ..default()
+            },
+            ..default()
+        }, 
+        UICamera
+    ));
 }
 
 fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
@@ -93,6 +103,7 @@ pub mod game_plugin {
     pub struct OnGameScreen;
 
     #[derive(Resource, Deref, DerefMut)]
+    #[allow(dead_code)]
     struct GameTimer(Timer);
 
     pub fn game_plugin(app: &mut App) {

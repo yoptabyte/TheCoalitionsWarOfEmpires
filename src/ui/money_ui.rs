@@ -185,7 +185,7 @@ const BUTTON_BLUE: Color = Color::rgb(0.1, 0.2, 0.7);
 
 // Setup UI: money text and spawn buttons
 fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Добавляем черную полосу под ресурсами
+    // Add a black bar under the resources
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -207,7 +207,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextSection::new(
                 "Money: 10.0",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(1.0, 0.9, 0.0),
                 },
@@ -228,7 +228,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextSection::new(
                 "Wood: 5.0",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(0.5, 0.3, 0.0),
                 },
@@ -249,7 +249,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextSection::new(
                 "Iron: 3.0",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(0.7, 0.7, 0.7),
                 },
@@ -270,7 +270,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextSection::new(
                 "Steel: 0.0",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(0.3, 0.3, 0.8),
                 },
@@ -291,7 +291,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextSection::new(
                 "Oil: 0.0",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(0.9, 0.1, 0.9),
                 },
@@ -307,13 +307,12 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnGameScreen,
     ));
 
-    // Добавляем отображение времени
     commands.spawn((
         TextBundle::from_sections([
             TextSection::new(
                 "Time: 0:00",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
                     color: Color::rgb(0.9, 0.9, 0.9),
                 },
@@ -365,7 +364,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 format!("Spawn cube (-{})", PurchasableItem::Tank.cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -391,7 +390,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 format!("Spawn infantry (-{})", PurchasableItem::Infantry.cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -420,7 +419,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     PurchasableItem::Airplane.steel_cost(),
                     PurchasableItem::Airplane.oil_cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -446,7 +445,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 format!("Spawn mine (-{} $, -{} wood)", PurchasableItem::Mine.cost(), PurchasableItem::Mine.wood_cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -472,7 +471,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 format!("Spawn steel factory (-{} $, -{} wood, -{} iron)", PurchasableItem::SteelFactory.cost(), PurchasableItem::SteelFactory.wood_cost(), PurchasableItem::SteelFactory.iron_cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -501,7 +500,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     PurchasableItem::PetrochemicalPlant.wood_cost(), 
                     PurchasableItem::PetrochemicalPlant.steel_cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -527,7 +526,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 format!("Spawn trench (-{}$, -{}🪵)", PurchasableItem::Trench.cost(), PurchasableItem::Trench.wood_cost()),
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -552,7 +551,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             b.spawn(TextBundle::from_section(
                 "Exit to Menu",
                 TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 20.0,
                     color: Color::WHITE,
                 },
@@ -701,7 +700,7 @@ fn handle_spawn_buttons(
     mut placement_state: ResMut<crate::game::PlacementState>,
     time: Res<Time>,
 ) {
-    for (interaction, mut color, entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant, is_trench) in &mut interaction_query {
+    for (interaction, mut color, _entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant, is_trench) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
@@ -724,11 +723,11 @@ fn handle_spawn_buttons(
 
                 // Check if player has enough resources
                 if money.0 >= item.cost() && wood.0 >= item.wood_cost() && iron.0 >= item.iron_cost() && steel.0 >= item.steel_cost() && oil.0 >= item.oil_cost() {
-                    // Устанавливаем состояние размещения объекта
+                    // Set the object placement state
                     placement_state.active = true;
                     placement_state.shape_type = Some(item.shape_type());
                     
-                    // Снимаем ресурсы заранее
+                    // Deduct resources in advance
                     money.0 -= item.cost();
                     wood.0 -= item.wood_cost();
                     iron.0 -= item.iron_cost();
@@ -738,13 +737,13 @@ fn handle_spawn_buttons(
                     info!("Placement mode activated for {:?}", item.shape_type());
                 }
 
-                // Обработка размещения окопа отдельно (сохраняем оригинальный код)
+                // Handle trench placement separately (keeping original code)
                 if is_trench.is_some() {
                     if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
                         money.0 -= item.cost();
                         wood.0 -= item.wood_cost();
                         
-                        // Определяем положение для окопа
+                        // Determine the position for the trench
                         let seed = time.elapsed_seconds_f64().fract() as f32;
                         let x = (seed * 100.0).sin() * 10.0 - 5.0;
                         let z = (seed * 100.0).cos() * 10.0 - 5.0;
@@ -915,6 +914,7 @@ fn cleanup_game_entities(
     commands.spawn((Camera2dBundle::default(), UICamera));
 }
 
+#[allow(dead_code)]
 fn spawn_shape(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

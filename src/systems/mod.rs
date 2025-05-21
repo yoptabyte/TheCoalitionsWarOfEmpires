@@ -4,6 +4,7 @@ pub mod combat;
 pub mod movement;
 
 pub use aircraft::*;
+#[allow(unused_imports)]
 pub use tower::*;
 pub use combat::*;
 pub use movement::*;

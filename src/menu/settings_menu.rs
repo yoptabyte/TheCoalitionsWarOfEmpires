@@ -12,7 +12,7 @@ pub struct OnDisplaySettingsMenuScreen;
 #[derive(Component)]
 pub struct OnSoundSettingsMenuScreen;
 
-pub fn settings_menu_setup(mut commands: Commands) {
+pub fn settings_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let button_style = Style {
         width: Val::Px(200.0),
         height: Val::Px(65.0),
@@ -23,9 +23,9 @@ pub fn settings_menu_setup(mut commands: Commands) {
     };
 
     let button_text_style = TextStyle {
+        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
         font_size: 33.0,
         color: TEXT_COLOR,
-        ..default()
     };
 
     commands.spawn((
@@ -117,7 +117,7 @@ pub fn settings_menu_setup(mut commands: Commands) {
     });
 }
 
-pub fn display_settings_menu_setup(mut commands: Commands, display_quality: Res<DisplayQuality>) {
+pub fn display_settings_menu_setup(mut commands: Commands, display_quality: Res<DisplayQuality>, asset_server: Res<AssetServer>) {
     let button_style = Style {
         width: Val::Px(200.0),
         height: Val::Px(65.0),
@@ -128,6 +128,7 @@ pub fn display_settings_menu_setup(mut commands: Commands, display_quality: Res<
     };
 
     let button_text_style = TextStyle {
+        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
         font_size: 33.0,
         color: TEXT_COLOR,
         ..default()
@@ -225,7 +226,7 @@ pub fn display_settings_menu_setup(mut commands: Commands, display_quality: Res<
     });
 }
 
-pub fn sound_settings_menu_setup(mut commands: Commands, volume: Res<Volume>) {
+pub fn sound_settings_menu_setup(mut commands: Commands, volume: Res<Volume>, asset_server: Res<AssetServer>) {
     let button_style = Style {
         width: Val::Px(200.0),
         height: Val::Px(65.0),
@@ -236,6 +237,7 @@ pub fn sound_settings_menu_setup(mut commands: Commands, volume: Res<Volume>) {
     };
     
     let button_text_style = TextStyle {
+        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
         font_size: 33.0,
         color: TEXT_COLOR,
         ..default()

@@ -1,8 +1,11 @@
 use bevy::prelude::*;
 
 pub const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+#[allow(dead_code)]
 pub const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+#[allow(dead_code)]
 pub const HOVERED_PRESSED_BUTTON: Color = Color::rgb(0.25, 0.65, 0.25);
+#[allow(dead_code)]
 pub const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 pub const TEXT_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 
@@ -48,6 +51,7 @@ pub enum MenuButtonAction {
     Quit,
 }
 
+#[allow(dead_code)]
 pub fn button_system(
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),

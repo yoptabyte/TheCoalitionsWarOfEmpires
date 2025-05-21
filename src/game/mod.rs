@@ -56,6 +56,7 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(Update, spawn_trench_on_keystroke.run_if(in_state(GameState::Game)));
 }
 
+#[allow(dead_code)]
 fn game_logic() {
     // TODO: Implement game logic
 }

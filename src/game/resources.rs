@@ -41,12 +41,12 @@ pub struct FarmIncomeTimer {
     pub timer: Timer,
 }
 
-/// Ресурс для отслеживания состояния размещения объекта
+/// Resource for tracking object placement state
 #[derive(Resource, Default)]
 pub struct PlacementState {
-    /// Тип объекта для размещения (None если нет активного размещения)
+    /// Type of object to place (None if no active placement)
     pub shape_type: Option<ShapeType>,
-    /// Флаг, указывающий, что активен режим размещения
+    /// Flag indicating that placement mode is active
     pub active: bool,
 }
 

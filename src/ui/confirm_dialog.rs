@@ -55,9 +55,9 @@ pub fn spawn_confirm_dialog(commands: &mut Commands, asset_server: &Res<AssetSer
                     parent.spawn(TextBundle::from_section(
                         "Are you sure?",
                         TextStyle {
+                            font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                             font_size: 40.0,
                             color: Color::WHITE,
-                            ..default()
                         },
                     ));
 
@@ -86,9 +86,9 @@ pub fn spawn_confirm_dialog(commands: &mut Commands, asset_server: &Res<AssetSer
                                     parent.spawn(TextBundle::from_section(
                                         "Yes",
                                         TextStyle {
+                                            font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                                             font_size: 30.0,
                                             color: Color::WHITE,
-                                            ..default()
                                         },
                                     ));
                                 });
@@ -108,9 +108,9 @@ pub fn spawn_confirm_dialog(commands: &mut Commands, asset_server: &Res<AssetSer
                                     parent.spawn(TextBundle::from_section(
                                         "No",
                                         TextStyle {
+                                            font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                                             font_size: 30.0,
                                             color: Color::WHITE,
-                                            ..default()
                                         },
                                     ));
                                 });

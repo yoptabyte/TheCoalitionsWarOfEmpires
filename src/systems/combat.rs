@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, Tower, EnemyTower, ShapeType};
+use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, EnemyTower, ShapeType};
 
 /// system for processing clicks on attackable objects (enemies or towers) and creating a shot
 pub fn handle_attacks(
@@ -21,7 +21,7 @@ pub fn handle_attacks(
             continue;
         }
         
-        // Подробное логирование клика
+        // Detailed click logging
         info!("handle_attacks: Click event detail - target: {:?}, hit position: {:?}", 
               event.target, event.hit.position);
         
@@ -61,7 +61,7 @@ pub fn handle_attacks(
                                 let target_type = if is_enemy { "enemy" } else { "tower" };
                                 info!("handle_attacks: Shooting at {} {:?} from distance {}", target_type, event.target, distance);
                                 
-                                // Создаем снаряд
+                                // Create projectile
                                 let projectile_mesh = meshes.add(Mesh::from(Sphere::new(0.1)));
                                 commands.spawn((
                                     PbrBundle {
@@ -78,7 +78,7 @@ pub fn handle_attacks(
                                     Name::new("projectile"),
                                 ));
                                 
-                                // Обновляем время последнего выстрела
+                                // Update last shot time
                                 commands.entity(shooter_entity).insert(CanShoot {
                                     cooldown: can_shoot.cooldown,
                                     last_shot: current_time,
@@ -160,7 +160,7 @@ pub fn update_projectiles(
     }
 }
 
-/// system for displaying health above objects (can be added in the future)
+#[allow(dead_code)]
 pub fn display_health_system() {
     todo!("display_health_system");
 }
@@ -169,7 +169,7 @@ pub fn display_health_system() {
 pub fn handle_trench_damage(
     trench_query: Query<&Transform, With<crate::game::Trench>>,
     mut enemy_query: Query<(&Transform, &mut Health), (With<Enemy>, With<ShapeType>)>,
-    time: Res<Time>,
+    _time: Res<Time>,
 ) {
     // Basic implementation for future addition of full functionality
     // In the future there will be:
