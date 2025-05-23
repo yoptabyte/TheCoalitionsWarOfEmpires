@@ -1,25 +1,25 @@
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use bevy_mod_picking::picking_core::PickSet;
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
-use bevy_mod_picking::picking_core::PickSet;
 
-mod menu;
 mod game;
 mod input;
+mod menu;
 mod systems;
-mod utils;
 mod ui;
+mod utils;
 
-use menu::common::{GameState, DisplayQuality, Volume};
+use game::*;
+use input::selection::ProcessedClicks;
+use input::*;
+use menu::common::{DisplayQuality, GameState, Volume};
+use systems::*;
 use ui::menu::menu_plugin;
 use ui::splash::splash_plugin;
-use game::*;
-use input::*;
-use systems::*;
-use utils::*;
 use ui::*;
-use input::selection::ProcessedClicks;
+use utils::*;
 
 /// Marker for UI camera to allow removing it when transitioning to game
 #[derive(Component)]
@@ -33,7 +33,7 @@ fn main() {
             DefaultPickingPlugins
                 .build()
                 .disable::<DefaultHighlightingPlugin>()
-                .disable::<DebugPickingPlugin>()
+                .disable::<DebugPickingPlugin>(),
         )
         .init_resource::<ClickCircle>()
         .init_resource::<SelectedEntity>()
@@ -45,7 +45,7 @@ fn main() {
         .init_state::<GameState>()
         .add_systems(Startup, (setup_ui_camera, setup_particle_effect))
         .add_systems(
-            Update, 
+            Update,
             (
                 clear_processed_clicks,
                 process_movement_orders,
@@ -66,10 +66,17 @@ fn main() {
                 tower::update_tower_health_status,
                 tower::spawn_tower_on_keystroke,
                 systems::combat::handle_trench_damage,
-            ).run_if(in_state(GameState::Game))
+            )
+                .run_if(in_state(GameState::Game)),
         )
         .add_systems(OnExit(GameState::Game), reset_placement_state)
-        .add_plugins((splash_plugin, menu_plugin, game::game_plugin, ui::money_ui::MoneyUiPlugin, ui::ui_plugin))
+        .add_plugins((
+            splash_plugin,
+            menu_plugin,
+            game::game_plugin,
+            ui::money_ui::MoneyUiPlugin,
+            ui::ui_plugin,
+        ))
         .run();
 }
 
@@ -82,8 +89,8 @@ fn setup_ui_camera(mut commands: Commands) {
                 ..default()
             },
             ..default()
-        }, 
-        UICamera
+        },
+        UICamera,
     ));
 }
 
@@ -93,11 +100,11 @@ fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
 }
 
 pub mod game_plugin {
-    use bevy::prelude::*;
     use crate::{
-        menu::common::{GameState, despawn_screen},
+        menu::common::{despawn_screen, GameState},
         systems::aircraft::spawn_initial_aircraft,
     };
+    use bevy::prelude::*;
 
     #[derive(Component)]
     pub struct OnGameScreen;
@@ -107,9 +114,12 @@ pub mod game_plugin {
     struct GameTimer(Timer);
 
     pub fn game_plugin(app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), (game_setup, spawn_initial_aircraft))
-            .add_systems(Update, game_system.run_if(in_state(GameState::Game)))
-            .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
+        app.add_systems(
+            OnEnter(GameState::Game),
+            (game_setup, spawn_initial_aircraft),
+        )
+        .add_systems(Update, game_system.run_if(in_state(GameState::Game)))
+        .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
     }
 
     fn game_setup(
@@ -117,11 +127,7 @@ pub mod game_plugin {
         meshes: ResMut<Assets<Mesh>>,
         materials: ResMut<Assets<StandardMaterial>>,
     ) {
-        crate::game::setup::setup(
-            commands,
-            meshes,
-            materials,
-        );
+        crate::game::setup::setup(commands, meshes, materials);
     }
 
     fn game_system() {

@@ -90,4 +90,4 @@ pub fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut comm
     for entity in &to_despawn {
         commands.entity(entity).despawn_recursive();
     }
-} 
+}

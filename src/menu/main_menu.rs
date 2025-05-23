@@ -1,5 +1,15 @@
-use bevy::{app::AppExit, prelude::*};
 use super::common::*;
+use bevy::{app::AppExit, prelude::*};
+
+// Faction selection components
+#[derive(Component)]
+pub struct FactionSelection;
+
+#[derive(Component, Clone, Copy, Debug)]
+pub enum Faction {
+    Entente,
+    CentralPowers,
+}
 
 #[derive(Component)]
 pub struct OnMainMenuScreen;
@@ -36,10 +46,9 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let world_model = asset_server.load("textures/WorldWar.glb#Scene0");
     let logo = asset_server.load("pic/logo.png");
 
-    // Set background color for the entire scene
     commands.insert_resource(ClearColor(Color::hex("#0A1E3E").unwrap()));
 
-    // Spawn the 3D world model first
+    // Spawn the 3D world model first with natural coloring
     commands.spawn((
         SceneBundle {
             scene: world_model,
@@ -52,11 +61,11 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnMainMenuScreen,
     ));
 
-    // Add lighting for the 3D model
+    // Simple, reliable lighting for the 3D model
     commands.spawn((
         DirectionalLightBundle {
             directional_light: DirectionalLight {
-                illuminance: 600.0,
+                illuminance: 1000.0,
                 shadows_enabled: false,
                 ..default()
             },
@@ -66,15 +75,25 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnMainMenuScreen,
     ));
 
-    // Single 3D camera that can see both 3D model and UI
+    // Add a second light from another angle to ensure visibility
+    commands.spawn((
+        DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                illuminance: 800.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            transform: Transform::from_xyz(50.0, 50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        OnMainMenuScreen,
+    ));
+
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(0.0, 10.0, 25.0)
                 .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
-            camera: Camera {
-                // Default priority
-                ..default()
-            },
+            camera: Camera { ..default() },
             ..default()
         },
         MenuCamera,
@@ -82,8 +101,8 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     let button_style = Style {
-        width: Val::Px(300.0),
-        height: Val::Px(65.0),
+        width: Val::Px(250.0),
+        height: Val::Px(55.0),
         margin: UiRect::all(Val::Px(20.0)),
         justify_content: JustifyContent::Center,
         align_items: AlignItems::Center,
@@ -99,7 +118,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let button_text_style = TextStyle {
         font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-        font_size: 33.0,
+        font_size: 28.0,
         color: TEXT_COLOR,
     };
 
@@ -127,23 +146,25 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|parent| {
             // Logo container at the top
             parent
-                .spawn((NodeBundle {
-                    style: Style {
-                        width: Val::Percent(100.0),
-                        height: Val::Auto,
-                        position_type: PositionType::Absolute,
-                        top: Val::Px(50.0), // Offset the logo downwards
-                        justify_content: JustifyContent::Center,
+                .spawn((
+                    NodeBundle {
+                        style: Style {
+                            width: Val::Px(500.0),
+                            height: Val::Auto,
+                            position_type: PositionType::Absolute,
+                            top: Val::Px(55.0), // Offset the logo downwards
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        background_color: Color::NONE.into(),
                         ..default()
                     },
-                    background_color: Color::NONE.into(),
-                    ..default()
-                },
-                LogoContainer,))
+                    LogoContainer,
+                ))
                 .with_children(|parent| {
                     parent.spawn(ImageBundle {
                         style: Style {
-                            width: Val::Px(800.0), // Further increase the logo size
+                            width: Val::Px(520.0),
                             margin: UiRect::all(Val::Px(0.0)),
                             ..default()
                         },
@@ -154,18 +175,20 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             // Button container offset to the left
             parent
-                .spawn((NodeBundle {
-                    style: Style {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::FlexStart, // Align to the left
-                        position_type: PositionType::Absolute, // Absolute positioning for buttons
-                        left: Val::Percent(10.0), // Slight shift to the left
-                        top: Val::Vh(60.0),      // Move buttons further down
+                .spawn((
+                    NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::FlexStart, // Align to the left
+                            position_type: PositionType::Absolute, // Absolute positioning for buttons
+                            left: Val::Percent(10.0),              // Slight shift to the left
+                            top: Val::Vh(50.0),
+                            ..default()
+                        },
                         ..default()
                     },
-                    ..default()
-                },
-                ButtonContainer))
+                    ButtonContainer,
+                ))
                 .with_children(|parent| {
                     parent
                         .spawn((
@@ -254,44 +277,66 @@ pub fn despawn_main_menu(mut commands: Commands, query: Query<Entity, With<OnMai
 pub fn animate_menu_transition(
     mut logo_query: Query<&mut Style, With<LogoContainer>>,
     mut button_query: Query<&mut Style, (With<ButtonContainer>, Without<LogoContainer>)>,
+    mut world_model_query: Query<&mut Transform, With<WorldModel>>,
     time: Res<Time>,
     mut timer: ResMut<AnimationTimer>,
     mut animation_state: ResMut<NextState<MenuAnimationState>>,
-    mut menu_state: ResMut<NextState<MenuState>>,
-    mut game_state: ResMut<NextState<GameState>>,
+    _menu_state: ResMut<NextState<MenuState>>,
+    _game_state: ResMut<NextState<GameState>>,
     windows: Query<&Window>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    faction_query: Query<Entity, With<FactionSelection>>,
 ) {
     // Update the timer
     timer.timer.tick(time.delta());
-    
+
     // Get window height for calculations
     let window_height = windows.single().height();
-    
+
     if let Ok(mut logo_style) = logo_query.get_single_mut() {
         if let Ok(mut button_style) = button_query.get_single_mut() {
             // Calculate animation progress (0.0 to 1.0)
             let progress = timer.timer.fraction();
-            
+
             // Animate logo down (move from top to bottom) - slower movement
             if let Val::Px(top) = logo_style.top {
-                let new_top = top + (window_height * 0.05 * progress); 
+                let new_top = top + (window_height * 0.05 * progress);
                 logo_style.top = Val::Px(new_top);
             }
-            
+
             // Animate buttons up (move from middle to top, off-screen) - slower movement
             if let Val::Vh(top) = button_style.top {
                 let new_top = top - (15.0 * progress);
                 button_style.top = Val::Vh(new_top);
             }
             
+            // Rotate the world model on Y-axis
+            if let Ok(mut transform) = world_model_query.get_single_mut() {
+                // Calculate rotation angle based on progress (180 degrees total rotation)
+                let rotation_angle = std::f32::consts::FRAC_PI_3 * -progress;
+                
+                // Keep the original X rotation and add Y rotation
+                let original_rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+                let y_rotation = Quat::from_rotation_x(rotation_angle);
+                
+                // Combine rotations
+                transform.rotation = y_rotation * original_rotation;
+            }
+
             // When animation is complete
             if timer.timer.finished() {
                 // Reset animation state
                 animation_state.set(MenuAnimationState::Idle);
-                
-                // Change to game state
-                menu_state.set(MenuState::Disabled);
-                game_state.set(GameState::Game);
+
+                // Check if faction selection UI is already spawned
+                if faction_query.iter().count() == 0 {
+                    // Spawn faction selection UI
+                    spawn_faction_selection(&mut commands, &asset_server);
+                }
+
+                // Don't transition to game state yet - wait for faction selection
+                // The game state transition will happen after faction selection
             }
         }
     }
@@ -341,10 +386,130 @@ pub fn menu_action(
     }
 }
 
+// Function to spawn the faction selection UI
+pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+    let entente_image = asset_server.load("pic/Entente.png");
+    let central_powers_image = asset_server.load("pic/CentralPowers.png");
+
+    // Root node for faction selection
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    position_type: PositionType::Absolute,
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: Color::NONE.into(),
+                ..default()
+            },
+            FactionSelection,
+            OnMainMenuScreen,
+        ))
+        .with_children(|parent| {
+            // Container for the two faction images
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Percent(90.0),
+                        height: Val::Auto,
+                        justify_content: JustifyContent::SpaceAround,
+                        align_items: AlignItems::Center,
+                        flex_direction: FlexDirection::Row,
+                        ..default()
+                    },
+                    background_color: Color::NONE.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    // Entente faction image
+                    parent.spawn((
+                        ButtonBundle {
+                            style: Style {
+                                width: Val::Px(440.0),
+                                height: Val::Px(420.0),
+                                margin: UiRect::all(Val::Px(30.0)),
+                                ..default()
+                            },
+                            image: UiImage::new(entente_image),
+                            background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                            ..default()
+                        },
+                        Faction::Entente,
+                    ));
+
+                    // Central Powers faction image
+                    parent.spawn((
+                        ButtonBundle {
+                            style: Style {
+                                width: Val::Px(440.0),
+                                height: Val::Px(420.0),
+                                margin: UiRect::all(Val::Px(30.0)),
+                                ..default()
+                            },
+                            image: UiImage::new(central_powers_image),
+                            background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                            ..default()
+                        },
+                        Faction::CentralPowers,
+                    ));
+                });
+        });
+
+    // No longer spawning the world map here - it's already spawned in main_menu_setup
+}
+
+// System for faction hover - now adds much brighter highlighting effect when hovering over faction images
+pub fn faction_hover_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<Button>, With<Faction>),
+    >,
+) {
+    for (interaction, mut background_color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Hovered => {
+                *background_color = Color::rgba(1.0, 1.0, 1.0, 1.0).into();
+            }
+            Interaction::None => {
+                // Dimmer when not hovering for better contrast
+                *background_color = Color::rgba(0.7, 0.7, 0.7, 0.9).into(); // More dimmed
+            }
+            Interaction::Pressed => {
+                // Feedback when pressed
+                *background_color = Color::rgba(1.0, 1.0, 1.0, 1.0).into(); // Bright blue glow when pressed
+            }
+        }
+    }
+}
+
+// System to handle faction selection
+pub fn faction_selection_system(
+    mut interaction_query: Query<(&Interaction, &Faction), (Changed<Interaction>, With<Button>)>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut player_faction: ResMut<crate::game::units::PlayerFaction>,
+) {
+    for (interaction, faction) in &mut interaction_query {
+        if *interaction == Interaction::Pressed {
+            // When a faction is selected, transition to game state
+            menu_state.set(MenuState::Disabled);
+            game_state.set(GameState::Game);
+
+            // Store the selected faction in the PlayerFaction resource
+            player_faction.0 = *faction;
+            info!("Player selected faction: {:?}", faction);
+        }
+    }
+}
+
 pub fn main_menu_plugin(app: &mut App) {
     app.init_state::<MenuAnimationState>()
         .insert_resource(AnimationTimer {
-            timer: Timer::from_seconds(3.0, TimerMode::Once), // Slower animation (3 seconds instead of 1.5)
+            timer: Timer::from_seconds(2.0, TimerMode::Once),
         })
         .add_systems(OnEnter(MenuState::Main), main_menu_setup)
         .add_systems(
@@ -356,6 +521,10 @@ pub fn main_menu_plugin(app: &mut App) {
             animate_menu_transition
                 .run_if(in_state(MenuAnimationState::Animating))
                 .run_if(in_state(MenuState::Main)),
+        )
+        .add_systems(
+            Update,
+            (faction_hover_system, faction_selection_system).run_if(in_state(MenuState::Main)),
         )
         .add_systems(OnExit(MenuState::Main), despawn_main_menu);
 }
