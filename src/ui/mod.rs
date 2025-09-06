@@ -13,6 +13,8 @@ pub mod purchase_menu;
 
 pub mod notification_system;
 
+pub mod turn_ui;
+
 use bevy::prelude::*;
 use crate::menu::common::GameState;
 use crate::game_plugin::OnGameScreen;
@@ -79,6 +81,7 @@ pub fn ui_plugin(app: &mut App) {
     app.add_plugins((
             purchase_menu::PurchaseMenuPlugin,
             notification_system::NotificationSystemPlugin,
+            turn_ui::TurnUiPlugin,
         ))
        .add_systems(
         Update,

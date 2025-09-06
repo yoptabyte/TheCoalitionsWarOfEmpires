@@ -353,11 +353,11 @@ pub fn handle_forest_interaction(
 ) {
     // Check if any forest farm became active
     for farm_active in farm_query.iter() {
-        if farm_active.0 && !notification_state.forest_notification_shown {
+        if farm_active.0 {
             info!("Forest activated, hiding notification");
             notification_state.forest_notification_shown = true;
             
-            // Remove forest notifications
+            // Remove forest notifications immediately
             for entity in &notification_query {
                 commands.entity(entity).despawn_recursive();
             }

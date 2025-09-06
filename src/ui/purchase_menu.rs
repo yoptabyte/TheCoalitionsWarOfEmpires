@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::game::units::PlayerFaction;
 use crate::menu::main_menu::Faction;
 use crate::ui::notification_system::{BlinkingButton, NotificationState, HighlightedInfantryButton, InfantryUnitButton, TankUnitButton, AircraftUnitButton, BuildingButton, BuildingType};
+use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 // States for the purchase menu
 #[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
@@ -92,7 +93,13 @@ pub fn handle_purchase_button(
     mut notification_state: ResMut<NotificationState>,
     mut button_query: Query<(Entity, &mut BlinkingButton), With<PurchaseMenuButton>>,
     mut commands: Commands,
+    turn_state: Res<TurnState>,
 ) {
+    // Покупки доступны только в ход игрока
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
+    
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
             purchase_menu_state.set(PurchaseMenuState::Open);
@@ -574,7 +581,13 @@ pub fn handle_close_button(
 pub fn handle_unit_purchase(
     interaction_query: Query<(&Interaction, &UnitPurchaseButton), (Changed<Interaction>, With<Button>)>,
     mut placement_state: ResMut<crate::game::PlacementState>,
+    turn_state: Res<TurnState>,
 ) {
+    // Покупки доступны только в ход игрока
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
+    
     for (interaction, button_type) in &interaction_query {
         if *interaction == Interaction::Pressed {
             // Set the placement state based on the button type

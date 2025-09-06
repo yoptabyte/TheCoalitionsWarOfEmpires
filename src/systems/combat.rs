@@ -1,21 +1,26 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, Projectile, CanShoot, EnemyTower, ShapeType};
+use crate::game::{SelectedEntity, Enemy, Health, CanShoot, EnemyTower, ShapeType};
+use crate::systems::turn_system::{TurnState, PlayerTurn};
 
-/// system for processing clicks on attackable objects (enemies or towers) and creating a shot
+/// system for processing clicks on attackable objects (enemies or towers) with instant hit
 pub fn handle_attacks(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut click_events: EventReader<Pointer<Click>>,
     selected_entity: Res<SelectedEntity>,
     query_enemy: Query<Entity, With<Enemy>>,
     query_enemy_tower: Query<Entity, With<EnemyTower>>,
     transform_query: Query<&Transform>,
     can_shoot_query: Query<&CanShoot>,
+    mut health_query: Query<&mut Health>,
     time: Res<Time>,
+    turn_state: Res<TurnState>,
 ) {
+    // Блокируем все клики во время хода ИИ
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
     for event in click_events.read() {
         if event.button != PointerButton::Primary {
             continue;
@@ -41,23 +46,14 @@ pub fn handle_attacks(
                             let distance = (target_pos - shooter_pos).length();
                             
                             if distance <= can_shoot.range {
-                                
-                                // Create projectile
-                                let projectile_mesh = meshes.add(Mesh::from(Sphere::new(0.1)));
-                                commands.spawn((
-                                    PbrBundle {
-                                        mesh: projectile_mesh,
-                                        material: materials.add(Color::rgb(1.0, 0.7, 0.0)),
-                                        transform: Transform::from_translation(shooter_pos + Vec3::new(0.0, 0.5, 0.0)),
-                                        ..default()
-                                    },
-                                    Projectile {
-                                        target: event.target,
-                                        speed: 5.0,
-                                        damage: can_shoot.damage,
-                                    },
-                                    Name::new("projectile"),
-                                ));
+                                // Instant hit - apply damage immediately
+                                if let Ok(mut health) = health_query.get_mut(event.target) {
+                                    health.current -= can_shoot.damage;
+                                    
+                                    if health.current <= 0.0 {
+                                        commands.entity(event.target).despawn_recursive();
+                                    }
+                                }
                                 
                                 // Update last shot time
                                 commands.entity(shooter_entity).insert(CanShoot {
@@ -75,47 +71,6 @@ pub fn handle_attacks(
     }
 }
 
-/// system for updating projectile flight and processing hits
-pub fn update_projectiles(
-    mut commands: Commands,
-    mut projectile_query: Query<(Entity, &mut Transform, &Projectile)>,
-    mut health_query: Query<&mut Health>,
-    transform_query: Query<&Transform, Without<Projectile>>,
-    _query_enemy: Query<(), With<Enemy>>,
-    _query_enemy_tower: Query<(), With<EnemyTower>>,
-    time: Res<Time>,
-) {
-    for (projectile_entity, mut projectile_transform, projectile) in projectile_query.iter_mut() {
-        if let Ok(target_transform) = transform_query.get(projectile.target) {
-            let target_pos = target_transform.translation;
-            let current_pos = projectile_transform.translation;
-            
-            let direction = target_pos - current_pos;
-            
-            if direction.length_squared() < 0.1 {
-                if let Ok(mut health) = health_query.get_mut(projectile.target) {
-                    health.current -= projectile.damage;
-                    
-                    if health.current <= 0.0 {
-                        commands.entity(projectile.target).despawn_recursive();
-                    }
-                }
-                
-                commands.entity(projectile_entity).despawn();
-            } else {
-                let movement = direction.normalize() * projectile.speed * time.delta_seconds();
-                projectile_transform.translation += movement;
-                
-                if direction.length_squared() > 0.001 {
-                    let target_rotation = Quat::from_rotation_arc(Vec3::Z, direction.normalize());
-                    projectile_transform.rotation = target_rotation;
-                }
-            }
-        } else {
-            commands.entity(projectile_entity).despawn();
-        }
-    }
-}
 
 
 /// System to handle damage from trenches to enemy infantry

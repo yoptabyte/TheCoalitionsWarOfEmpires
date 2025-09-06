@@ -2,8 +2,10 @@ use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
+use bevy_rapier3d::prelude::*;
 
 use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType};
+use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 /// Resource for tracking mouse position in world space
 #[derive(Resource, Default)]
@@ -23,7 +25,12 @@ pub fn select_entity_system(
     query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>, Without<SteelFactory>, Without<PetrochemicalPlant>)>,
     query_attackable: Query<Entity, Or<(With<Enemy>, With<EnemyTower>)>>,
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
+    turn_state: Res<TurnState>,
 ) {
+    // Блокируем все клики во время хода ИИ
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
     for event in click_events.read() {
         if event.button != PointerButton::Primary {
             continue;
@@ -99,27 +106,17 @@ pub fn update_mouse_world_position(
 pub fn handle_ground_clicks(
     mut commands: Commands,
     mut click_events: EventReader<Pointer<Click>>,
-    query_selectable: Query<(), With<Selectable>>,
     query_ground: Query<(), With<Ground>>,
-    query_enemy: Query<(), With<Enemy>>,
-    query_enemy_tower: Query<(), With<EnemyTower>>,
-    query_farm: Query<(), With<Farm>>,
-    query_mine: Query<(), With<Mine>>,
-    query_steel_factory: Query<(), With<SteelFactory>>,
-    query_petrochemical_plant: Query<(), With<PetrochemicalPlant>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
     click_effect_handle: Res<ClickEffectHandle>,
     selected_entity_res: Res<SelectedEntity>,
-    placement_state: Res<crate::game::PlacementState>,
-    processed_clicks: Res<ProcessedClicks>,
+    turn_state: Res<TurnState>,
 ) {
-    // If placement mode is active, this is handled in another system
-    if placement_state.active {
+    // Блокируем все клики во время хода ИИ
+    if turn_state.current_player != PlayerTurn::Human {
         return;
     }
-
-    let mut clicked_on_selectable = false;
     let mut clicked_on_ground = false;
     let mut ground_click_position: Option<Vec3> = None;
     
@@ -129,49 +126,26 @@ pub fn handle_ground_clicks(
             continue;
         }
         
-        // Check if click was already processed by placement system
-        if processed_clicks.processed_ids.contains(&event.pointer_id) {
-            info!("handle_ground_clicks: Skipping already processed click event {:?}", event.pointer_id);
-            continue;
-        }
-        
-        info!("handle_ground_clicks: Processing click event on entity {:?}, hit: {:?}", event.target, event.hit);
-        
-        if query_selectable.get(event.target).is_ok() {
-            clicked_on_selectable = true;
-            info!("handle_ground_clicks: clicked on selectable {:?}", event.target);
-        }
-        
         if query_ground.get(event.target).is_ok() {
             clicked_on_ground = true;
             if let Some(position) = event.hit.position {
                 ground_click_position = Some(position);
                 info!("handle_ground_clicks: clicked on ground at position {:?}", position);
-            } else {
-                info!("handle_ground_clicks: clicked on ground but no position information available");
             }
         }
     }
     
     // Logic for determining ground click for movement
-    if !clicked_on_selectable && clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
+    if clicked_on_ground && selected_entity_res.0.is_some() && ground_click_position.is_some() {
         let target_point = ground_click_position.unwrap();
         
-        // Add logging for debugging
-        info!("handle_ground_clicks: Valid ground click detected at position {:?}", target_point);
-        
         if let Some(entity_to_move) = selected_entity_res.0 {
-            // Check that the object is not a farm, mine, steel mill, petrochemical plant, enemy, or tower
-            if query_enemy.get(entity_to_move).is_err() && 
-               query_enemy_tower.get(entity_to_move).is_err() && 
-               query_farm.get(entity_to_move).is_err() &&
-               query_mine.get(entity_to_move).is_err() &&
-               query_steel_factory.get(entity_to_move).is_err() &&
-               query_petrochemical_plant.get(entity_to_move).is_err() {
-                info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
-                
+            info!("handle_ground_clicks: Sending order to move for {:?} to point {:?}", entity_to_move, target_point);
+            
+            // Check if entity still exists before trying to move it
+            if let Some(mut entity_commands) = commands.get_entity(entity_to_move) {
                 // Send movement command
-                commands.entity(entity_to_move).insert(MovementOrder(target_point));
+                entity_commands.insert(MovementOrder(target_point));
                 
                 // Update click circle display info
                 click_circle.position = Some(target_point);
@@ -187,32 +161,8 @@ pub fn handle_ground_clicks(
                     },
                 ));
             } else {
-                let entity_type = if query_enemy.get(entity_to_move).is_ok() { 
-                    "enemy" 
-                } else if query_enemy_tower.get(entity_to_move).is_ok() { 
-                    "enemy tower" 
-                } else if query_farm.get(entity_to_move).is_ok() { 
-                    "farm" 
-                } else if query_mine.get(entity_to_move).is_ok() {
-                    "mine"
-                } else if query_steel_factory.get(entity_to_move).is_ok() {
-                    "steel factory"
-                } else {
-                    "petrochemical plant"
-                };
-                info!("handle_ground_clicks: Can't move {} object", entity_type);
+                info!("handle_ground_clicks: Entity {:?} no longer exists, cannot move", entity_to_move);
             }
-        }
-    } else if clicked_on_selectable {
-        click_circle.position = None;
-    } else {
-        // Log skipped click for debugging
-        if !clicked_on_ground && !clicked_on_selectable {
-            info!("handle_ground_clicks: Click not registered on ground or selectable object");
-        } else if selected_entity_res.0.is_none() {
-            info!("handle_ground_clicks: No entity selected");
-        } else if ground_click_position.is_none() && clicked_on_ground {
-            info!("handle_ground_clicks: Click registered on ground but position is None");
         }
     }
 }
@@ -229,7 +179,12 @@ pub fn handle_placement_clicks(
     click_effect_handle: Res<ClickEffectHandle>,
     mut placement_state: ResMut<crate::game::PlacementState>,
     mut processed_clicks: ResMut<ProcessedClicks>,
+    turn_state: Res<TurnState>,
 ) {
+    // Блокируем все клики во время хода ИИ
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
     // If placement mode is not active, exit
     if !placement_state.active || placement_state.shape_type.is_none() {
         return;
@@ -290,6 +245,11 @@ pub fn handle_placement_clicks(
                         damage: 10.0,
                     },
                     crate::game::components::Tank,
+                    RigidBody::Dynamic,
+                    Collider::cuboid(0.5, 0.5, 0.5), // Коллайдер танка
+                    LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
+                    Restitution::coefficient(0.0), // Без отскока
+                    Friction::coefficient(0.8), // Трение
                     PickableBundle::default(),
                     Name::new("Tank"),
                 ));
@@ -308,7 +268,6 @@ pub fn handle_placement_clicks(
                     shape_type,
                     crate::game::Selectable,
                     crate::game::HoveredOutline,
-                    PickableBundle::default(),
                     crate::game::Health {
                         current: 60.0,
                         max: 60.0,
@@ -319,6 +278,12 @@ pub fn handle_placement_clicks(
                         range: 12.0,
                         damage: 8.0,
                     },
+                    RigidBody::Dynamic,
+                    Collider::ball(0.5), // Коллайдер пехоты
+                    LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
+                    Restitution::coefficient(0.0), // Без отскока
+                    Friction::coefficient(0.8), // Трение
+                    PickableBundle::default(),
                     Name::new("Infantry"),
                 ));
             }
@@ -336,7 +301,6 @@ pub fn handle_placement_clicks(
                     shape_type,
                     crate::game::components::Selectable,
                     crate::game::components::HoveredOutline,
-                    PickableBundle::default(),
                     crate::game::components::Aircraft {
                         height: 10.0,
                         speed: 5.0,
@@ -351,6 +315,12 @@ pub fn handle_placement_clicks(
                         range: 20.0,
                         damage: 15.0,
                     },
+                    RigidBody::Dynamic,
+                    Collider::cuboid(1.0, 0.25, 2.0), // Коллайдер самолета
+                    LockedAxes::ROTATION_LOCKED, // Заблокируем только вращение, самолеты могут двигаться по Y
+                    Restitution::coefficient(0.0), // Без отскока
+                    Friction::coefficient(0.0), // Без трения в воздухе
+                    PickableBundle::default(),
                 ));
             }
             ShapeType::Tower => {

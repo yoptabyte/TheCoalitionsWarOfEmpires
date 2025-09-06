@@ -3,6 +3,7 @@ use bevy_hanabi::prelude::*;
 use bevy_mod_picking::picking_core::PickSet;
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
+use bevy_rapier3d::prelude::*;
 
 mod game;
 mod input;
@@ -36,6 +37,8 @@ fn main() {
             ..default()
         }))
         .add_plugins(HanabiPlugin)
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(
             DefaultPickingPlugins
                 .build()
@@ -47,32 +50,70 @@ fn main() {
         .init_resource::<CameraSettings>()
         .init_resource::<CameraMovementState>()
         .init_resource::<ProcessedClicks>()
+        .init_resource::<systems::AIBehavior>()
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
         .add_systems(Startup, (setup_ui_camera, setup_particle_effect))
         .add_systems(
             Update,
+            clear_processed_clicks.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
             (
-                clear_processed_clicks,
                 process_movement_orders,
                 draw_click_circle,
                 draw_movement_lines,
-                select_entity_system.after(PickSet::Last),
-                handle_placement_clicks,
-                handle_ground_clicks.after(handle_placement_clicks),
-                handle_attacks.after(select_entity_system),
-                update_projectiles,
                 draw_hover_outline,
                 draw_health_bars,
-                camera_zoom_system,
-                camera_right_button_movement.after(camera_zoom_system),
-                camera_follow_selected.after(camera_zoom_system),
                 aircraft_movement,
+                systems::combat::handle_trench_damage,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            select_entity_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            handle_placement_clicks.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            handle_ground_clicks.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            handle_attacks.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            (
+                camera_zoom_system,
+                camera_right_button_movement,
+                camera_follow_selected,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            (
                 tower::repair_tower,
                 tower::update_tower_health_status,
                 tower::spawn_tower_on_keystroke,
-                systems::combat::handle_trench_damage,
+            )
+                .run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            (
+                // Turn-based systems
+                systems::turn_system::update_turn_system,
+                systems::ai_opponent::ai_purchase_system,
+                systems::ai_opponent::ai_movement_system,
+                systems::ai_opponent::ai_combat_system,
             )
                 .run_if(in_state(GameState::Game)),
         )
