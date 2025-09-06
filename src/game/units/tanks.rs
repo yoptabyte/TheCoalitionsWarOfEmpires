@@ -191,13 +191,3 @@ pub fn spawn_tank(
     )).id()
 }
 
-/// System to update tank behavior
-pub fn update_tanks_system(
-    _time: Res<Time>,
-    mut tank_query: Query<(&mut Transform, &MilitaryUnit), With<TankMarker>>,
-) {
-    // This will be expanded with actual behavior logic
-    for (_transform, _unit) in tank_query.iter_mut() {
-        // Movement, attack, and other behaviors will be implemented here
-    }
-}

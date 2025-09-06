@@ -5,7 +5,7 @@ use bevy::{app::AppExit, prelude::*};
 #[derive(Component)]
 pub struct FactionSelection;
 
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub enum Faction {
     Entente,
     CentralPowers,

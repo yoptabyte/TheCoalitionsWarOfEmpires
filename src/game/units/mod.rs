@@ -31,13 +31,7 @@ pub struct UnitsPlugin;
 
 impl Plugin for UnitsPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<PlayerFaction>()
-            .add_systems(Update, (
-                infantry::update_infantry_system,
-                tanks::update_tanks_system,
-                aircraft::update_aircraft_system,
-            ));
+        app.init_resource::<PlayerFaction>();
     }
 }
 

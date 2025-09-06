@@ -70,6 +70,7 @@
             xorg.libXrandr
             vulkan-loader
             vulkan-validation-layers
+            libva-utils
           ];
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
           LD_LIBRARY_PATH = libPath;

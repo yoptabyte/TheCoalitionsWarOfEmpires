@@ -195,13 +195,3 @@ pub fn spawn_infantry(
     )).id()
 }
 
-/// System to update infantry behavior
-pub fn update_infantry_system(
-    _time: Res<Time>,
-    mut infantry_query: Query<(&mut Transform, &MilitaryUnit), With<Infantry>>,
-) {
-    // This will be expanded with actual behavior logic
-    for (_transform, _unit) in infantry_query.iter_mut() {
-        // Movement, attack, and other behaviors will be implemented here
-    }
-}

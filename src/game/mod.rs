@@ -8,6 +8,7 @@ pub mod setup;
 pub mod steel_factory;
 pub mod trench;
 pub mod units;
+pub mod asset_loader;
 pub use components::*;
 pub use farm::*;
 pub use mine::*;
@@ -32,6 +33,7 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<PlacementState>()
         .init_resource::<units::PlayerFaction>()
         .add_plugins(units::UnitsPlugin)
+        .add_plugins(asset_loader::LazyAssetPlugin)
         // Farm systems
         .add_systems(Update, update_farm_income.run_if(in_state(GameState::Game)))
         .add_systems(Update, handle_farm_clicks.run_if(in_state(GameState::Game)))
@@ -113,7 +115,3 @@ pub fn game_plugin(app: &mut App) {
         );
 }
 
-#[allow(dead_code)]
-fn game_logic() {
-    // TODO: Implement game logic
-}

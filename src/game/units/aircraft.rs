@@ -203,13 +203,3 @@ pub fn spawn_aircraft(
     )).id()
 }
 
-/// System to update aircraft behavior
-pub fn update_aircraft_system(
-    _time: Res<Time>,
-    mut aircraft_query: Query<(&mut Transform, &MilitaryUnit, &AircraftMarker)>,
-) {
-    // This will be expanded with actual behavior logic
-    for (_transform, _unit, _aircraft) in aircraft_query.iter_mut() {
-        // Movement, attack, and other behaviors will be implemented here
-    }
-}

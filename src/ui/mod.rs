@@ -11,6 +11,8 @@ pub mod confirm_dialog;
 
 pub mod purchase_menu;
 
+pub mod notification_system;
+
 use bevy::prelude::*;
 use crate::menu::common::GameState;
 use crate::game_plugin::OnGameScreen;
@@ -74,7 +76,10 @@ pub fn show_placement_state(
 pub struct PlacementStateText;
 
 pub fn ui_plugin(app: &mut App) {
-    app.add_plugins(purchase_menu::PurchaseMenuPlugin)
+    app.add_plugins((
+            purchase_menu::PurchaseMenuPlugin,
+            notification_system::NotificationSystemPlugin,
+        ))
        .add_systems(
         Update,
         (

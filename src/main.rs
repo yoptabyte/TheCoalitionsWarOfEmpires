@@ -27,7 +27,14 @@ struct UICamera;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "The Coalitions War of Empires".to_string(),
+                resolution: (1024.0, 768.0).into(),
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(HanabiPlugin)
         .add_plugins(
             DefaultPickingPlugins

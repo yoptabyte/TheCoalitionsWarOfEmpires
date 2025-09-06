@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::game::units::PlayerFaction;
 use crate::menu::main_menu::Faction;
+use crate::ui::notification_system::{BlinkingButton, NotificationState, HighlightedInfantryButton, InfantryUnitButton, TankUnitButton, AircraftUnitButton, BuildingButton, BuildingType};
 
 // States for the purchase menu
 #[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
@@ -31,16 +32,18 @@ pub enum UnitPurchaseButton {
     Infantry(usize),  // 0, 1, 2 for the three types
     Tank(usize),      // 0, 1, 2 for the three types
     Aircraft(usize),  // 0, 1, 2 for the three types
-    Farm,
     Mine,
     SteelFactory,
     PetrochemicalPlant,
-    Trench,
 }
 
 // System to spawn the purchase menu button in the top-left corner
-pub fn spawn_purchase_button(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((
+pub fn spawn_purchase_button(
+    mut commands: Commands, 
+    asset_server: Res<AssetServer>,
+    notification_state: Res<NotificationState>,
+) {
+    let mut button_entity = commands.spawn((
         ButtonBundle {
             style: Style {
                 width: Val::Px(50.0),
@@ -57,8 +60,14 @@ pub fn spawn_purchase_button(mut commands: Commands, asset_server: Res<AssetServ
         },
         PurchaseMenuButton,
         OnGameScreen,
-    ))
-    .with_children(|parent| {
+    ));
+    
+    // Add blinking animation if purchase menu hasn't been opened yet
+    if !notification_state.purchase_menu_opened {
+        button_entity.insert(BlinkingButton::default());
+    }
+    
+    button_entity.with_children(|parent| {
         parent.spawn(
             TextBundle::from_section(
                 "+",
@@ -80,10 +89,19 @@ pub fn spawn_purchase_button(mut commands: Commands, asset_server: Res<AssetServ
 pub fn handle_purchase_button(
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<PurchaseMenuButton>)>,
     mut purchase_menu_state: ResMut<NextState<PurchaseMenuState>>,
+    mut notification_state: ResMut<NotificationState>,
+    mut button_query: Query<(Entity, &mut BlinkingButton), With<PurchaseMenuButton>>,
+    mut commands: Commands,
 ) {
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
             purchase_menu_state.set(PurchaseMenuState::Open);
+            notification_state.purchase_menu_opened = true;
+            
+            // Remove blinking animation from purchase button
+            for (entity, _) in button_query.iter_mut() {
+                commands.entity(entity).remove::<BlinkingButton>();
+            }
         }
     }
 }
@@ -93,6 +111,7 @@ pub fn spawn_purchase_menu(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     player_faction: Res<PlayerFaction>,
+    notification_state: Res<NotificationState>,
 ) {
     // Main container
     commands
@@ -214,7 +233,7 @@ pub fn spawn_purchase_menu(
                     };
 
                     for i in 0..3 {
-                        row.spawn((
+                        let mut button_entity = row.spawn((
                             ButtonBundle {
                                 style: Style {
                                     width: Val::Px(110.0),
@@ -228,14 +247,25 @@ pub fn spawn_purchase_menu(
                                 ..default()
                             },
                             UnitPurchaseButton::Infantry(i),
-                        ))
-                        .with_children(|button| {
+                            InfantryUnitButton {
+                                unit_type: i,
+                                faction: player_faction.0,
+                            },
+                        ));
+                        
+                        // Add highlighting component if infantry hasn't been explained yet
+                        if !notification_state.infantry_explained {
+                            button_entity.insert(HighlightedInfantryButton);
+                        }
+                        
+                        button_entity.with_children(|button| {
+                            let cost = crate::ui::notification_system::get_infantry_cost(player_faction.0, i);
                             button.spawn(
                                 TextBundle::from_section(
-                                    infantry_names[i],
+                                    format!("{}\n${}", infantry_names[i], cost),
                                     TextStyle {
                                         font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                                        font_size: 14.0,
+                                        font_size: 12.0,
                                         color: Color::WHITE,
                                     },
                                 )
@@ -298,6 +328,10 @@ pub fn spawn_purchase_menu(
                                 ..default()
                             },
                             UnitPurchaseButton::Tank(i),
+                            TankUnitButton {
+                                unit_type: i,
+                                faction: player_faction.0,
+                            },
                         ))
                         .with_children(|button| {
                             button.spawn(
@@ -368,6 +402,10 @@ pub fn spawn_purchase_menu(
                                 ..default()
                             },
                             UnitPurchaseButton::Aircraft(i),
+                            AircraftUnitButton {
+                                unit_type: i,
+                                faction: player_faction.0,
+                            },
                         ))
                         .with_children(|button| {
                             button.spawn(
@@ -417,15 +455,19 @@ pub fn spawn_purchase_menu(
                     ..default()
                 })
                 .with_children(|row| {
-                    // Create building buttons
-                    let building_names = ["Farm", "Mine", "Steel Factory"];
+                    // Create building buttons (removed Farm)
+                    let building_names = ["Mine", "Steel Factory"];
                     let building_types = [
-                        UnitPurchaseButton::Farm,
                         UnitPurchaseButton::Mine,
                         UnitPurchaseButton::SteelFactory,
                     ];
 
-                    for i in 0..3 {
+                    let building_component_types = [
+                        BuildingType::Mine,
+                        BuildingType::SteelFactory,
+                    ];
+                    
+                    for i in 0..2 {
                         row.spawn((
                             ButtonBundle {
                                 style: Style {
@@ -440,6 +482,9 @@ pub fn spawn_purchase_menu(
                                 ..default()
                             },
                             building_types[i].clone(),
+                            BuildingButton {
+                                building_type: building_component_types[i],
+                            },
                         ))
                         .with_children(|button| {
                             button.spawn(
@@ -460,60 +505,55 @@ pub fn spawn_purchase_menu(
                     }
                 });
 
-            // Buildings buttons row (second row)
+            // Buildings buttons row (second row) - only Petrochemical Plant
             parent
                 .spawn(NodeBundle {
                     style: Style {
                         width: Val::Percent(100.0),
                         height: Val::Px(80.0),
                         flex_direction: FlexDirection::Row,
-                        justify_content: JustifyContent::SpaceAround,
+                        justify_content: JustifyContent::Center,
                         margin: UiRect::top(Val::Px(10.0)),
                         ..default()
                     },
                     ..default()
                 })
                 .with_children(|row| {
-                    // Create remaining building buttons
-                    let building_names = ["Petrochemical Plant", "Trench"];
-                    let building_types = [
-                        UnitPurchaseButton::PetrochemicalPlant,
-                        UnitPurchaseButton::Trench,
-                    ];
-
-                    for i in 0..2 {
-                        row.spawn((
-                            ButtonBundle {
-                                style: Style {
-                                    width: Val::Px(110.0),
-                                    height: Val::Px(70.0),
-                                    justify_content: JustifyContent::Center,
-                                    align_items: AlignItems::Center,
-                                    padding: UiRect::all(Val::Px(5.0)),
-                                    ..default()
-                                },
-                                background_color: Color::rgb(0.4, 0.6, 0.4).into(),
+                    // Only Petrochemical Plant button
+                    row.spawn((
+                        ButtonBundle {
+                            style: Style {
+                                width: Val::Px(110.0),
+                                height: Val::Px(70.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                padding: UiRect::all(Val::Px(5.0)),
                                 ..default()
                             },
-                            building_types[i].clone(),
-                        ))
-                        .with_children(|button| {
-                            button.spawn(
-                                TextBundle::from_section(
-                                    building_names[i],
-                                    TextStyle {
-                                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                                        font_size: 14.0,
-                                        color: Color::WHITE,
-                                    },
-                                )
-                                .with_style(Style {
-                                    margin: UiRect::all(Val::Auto),
-                                    ..default()
-                                }),
-                            );
-                        });
-                    }
+                            background_color: Color::rgb(0.4, 0.6, 0.4).into(),
+                            ..default()
+                        },
+                        UnitPurchaseButton::PetrochemicalPlant,
+                        BuildingButton {
+                            building_type: BuildingType::PetrochemicalPlant,
+                        },
+                    ))
+                    .with_children(|button| {
+                        button.spawn(
+                            TextBundle::from_section(
+                                "Petrochemical Plant",
+                                TextStyle {
+                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                    font_size: 14.0,
+                                    color: Color::WHITE,
+                                },
+                            )
+                            .with_style(Style {
+                                margin: UiRect::all(Val::Auto),
+                                ..default()
+                            }),
+                        );
+                    });
                 });
         });
 }
@@ -550,9 +590,6 @@ pub fn handle_unit_purchase(
                 UnitPurchaseButton::Aircraft(_) => {
                     placement_state.shape_type = Some(crate::game::components::ShapeType::Airplane);
                 },
-                UnitPurchaseButton::Farm => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Farm);
-                },
                 UnitPurchaseButton::Mine => {
                     placement_state.shape_type = Some(crate::game::components::ShapeType::Mine);
                 },
@@ -561,9 +598,6 @@ pub fn handle_unit_purchase(
                 },
                 UnitPurchaseButton::PetrochemicalPlant => {
                     placement_state.shape_type = Some(crate::game::components::ShapeType::PetrochemicalPlant);
-                },
-                UnitPurchaseButton::Trench => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Trench);
                 },
             }
             
