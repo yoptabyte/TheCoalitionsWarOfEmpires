@@ -3634,6 +3634,7 @@ dependencies = [
  "bevy_mod_picking",
  "bevy_rapier3d",
  "big-brain",
+ "rand",
 ]
 
 [[package]]

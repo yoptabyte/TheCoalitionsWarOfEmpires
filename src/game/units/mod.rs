@@ -34,10 +34,8 @@ impl AIFaction {
     }
     
     pub fn get_opposite(&self) -> Faction {
-        match self.0 {
-            Faction::Entente => Faction::CentralPowers,
-            Faction::CentralPowers => Faction::Entente,
-        }
+        // AI фракция уже противоположна игроку, поэтому возвращаем саму AI фракцию
+        self.0
     }
 }
 

@@ -151,16 +151,16 @@ pub fn spawn_infantry(
     let model_path = match infantry_type {
         InfantryType::Entente(entente_type) => {
             match entente_type {
-                EntenteInfantryType::Russian => "models/infantry/russian_infantry.glb#Scene0",
-                EntenteInfantryType::British => "models/infantry/british_infantry.glb#Scene0",
-                EntenteInfantryType::French => "models/infantry/french_infantry.glb#Scene0",
+                EntenteInfantryType::Russian => "models/infantry/russian_soldier.glb#Scene0",
+                EntenteInfantryType::British => "models/infantry/british_soldier.glb#Scene0",
+                EntenteInfantryType::French => "models/infantry/french_soldier.glb#Scene0",
             }
         },
         InfantryType::CentralPowers(central_type) => {
             match central_type {
-                CentralPowersInfantryType::German => "models/infantry/german_infantry.glb#Scene0",
-                CentralPowersInfantryType::Turkish => "models/infantry/turkish_infantry.glb#Scene0",
-                CentralPowersInfantryType::AustroHungarian => "models/infantry/austrohungarian_infantry.glb#Scene0",
+                CentralPowersInfantryType::German => "models/infantry/german_soldier.glb#Scene0",
+                CentralPowersInfantryType::Turkish => "models/infantry/turkish_soldier.glb#Scene0",
+                CentralPowersInfantryType::AustroHungarian => "models/infantry/austrian_soldier.glb#Scene0",
             }
         },
     };

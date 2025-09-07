@@ -671,8 +671,10 @@ fn handle_spawn_buttons(
                 };
 
                 // Check if player has enough resources
+                info!("🔥 OLD UI: Button pressed for item {:?}", item);
                 if can_afford_item(item, &money, &wood, &iron, &steel, &oil) {
                     // Set the object placement state for units
+                    info!("🔥 OLD UI: Setting placement state active for {:?}", item.shape_type());
                     placement_state.active = true;
                     placement_state.shape_type = Some(item.shape_type());
                     
@@ -1139,6 +1141,7 @@ pub fn place_shape(
     asset_server: &AssetServer,
     player_faction: &Res<crate::game::units::PlayerFaction>,
 ) {
+    info!("🔥🔥🔥 place_shape: FUNCTION CALLED!!! shape_type {:?} at position {:?} faction {:?}", shape_type, position, player_faction.0);
     use crate::game::components::*;
     use bevy_rapier3d::prelude::*;
     use bevy_mod_picking::prelude::*;
@@ -1173,15 +1176,33 @@ pub fn place_shape(
         },
         ShapeType::Cube => {
             use crate::menu::main_menu::Faction;
-            let model_path = match player_faction.0 {
-                Faction::Entente => "models/entente/tanks/mark1.glb#Scene0",
-                Faction::CentralPowers => "models/central_powers/tanks/a7v.glb#Scene0",
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let tank_type_index = rng.gen_range(0..3);
+            
+            let (model_path, scale) = match player_faction.0 {
+                Faction::Entente => {
+                    match tank_type_index {
+                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.1), // tsar_tank уменьшен в 4 раза
+                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 уменьшен в 5 раз
+                        _ => ("models/entente/tanks/renault_ft17.glb#Scene0", 0.4), // renault остается нормальным
+                    }
+                },
+                Faction::CentralPowers => {
+                    match tank_type_index {
+                        0 => ("models/central_powers/tanks/panzerwagen.glb#Scene0", 0.08), // panzerwagen уменьшен в 5 раз
+                        1 => ("models/central_powers/tanks/a7v.glb#Scene0", 0.08), // a7v уменьшен в 5 раз
+                        _ => ("models/central_powers/tanks/steam_wheel_tank.glb#Scene0", 0.08), // steam_wheel остается как был
+                    }
+                },
             };
-            commands.spawn((
+            
+            info!("🔥 TANK: Loading model from path: {} with scale: {}", model_path, scale);
+            let entity_id = commands.spawn((
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(position)
-                        .with_scale(Vec3::splat(0.125)),
+                        .with_scale(Vec3::splat(scale)),
                     ..default()
                 },
                 ShapeType::Cube,
@@ -1198,25 +1219,43 @@ pub fn place_shape(
                     damage: 10.0,
                 },
                 RigidBody::Dynamic,
-                Collider::cuboid(0.5, 0.5, 0.5),
+                Collider::cuboid(2.0, 2.0, 2.0), // Увеличенный коллайдер для лучшей кликабельности
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
                 bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("Player Tank"),
-            ));
+            )).id();
+            info!("🔥 TANK SPAWNED: Entity {:?} at position {:?} with Selectable component", entity_id, position);
         },
         ShapeType::Airplane => {
             use crate::menu::main_menu::Faction;
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let aircraft_type_index = rng.gen_range(0..3);
+            
             let model_path = match player_faction.0 {
-                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
-                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                Faction::Entente => {
+                    match aircraft_type_index {
+                        0 => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                        1 => "models/entente/airplanes/breguet_14.glb#Scene0",
+                        _ => "models/entente/airplanes/ilya_muromets.glb#Scene0",
+                    }
+                },
+                Faction::CentralPowers => {
+                    match aircraft_type_index {
+                        0 => "models/central_powers/airplanes/fokker.glb#Scene0",
+                        1 => "models/central_powers/airplanes/albatros.glb#Scene0",
+                        _ => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                    }
+                },
             };
-            commands.spawn((
+            info!("🔥 AIRCRAFT: Loading model from path: {}", model_path);
+            let entity_id = commands.spawn((
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(position + Vec3::new(0.0, 10.0, 0.0))
-                        .with_scale(Vec3::splat(0.1)),
+                        .with_scale(Vec3::splat(0.6)),
                     ..default()
                 },
                 ShapeType::Airplane,
@@ -1236,11 +1275,93 @@ pub fn place_shape(
                     damage: 15.0,
                 },
                 RigidBody::Fixed,
-                Collider::cuboid(1.0, 0.25, 2.0),
+                Collider::cuboid(3.0, 1.0, 4.0), // Увеличенный коллайдер для лучшей кликабельности
                 LockedAxes::all(),
                 bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("Player Aircraft"),
-            ));
+            )).id();
+            info!("🔥 AIRCRAFT SPAWNED: Entity {:?} at position {:?} with Selectable component", entity_id, position);
+        },
+        ShapeType::Infantry => {
+            use crate::menu::main_menu::Faction;
+            use crate::game::units::infantry::{InfantryType, EntenteInfantryType, CentralPowersInfantryType, Infantry, InfantryAttributes};
+            use crate::game::components::{Health, CanShoot, Selectable, HoveredOutline};
+            use bevy_rapier3d::prelude::*;
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let infantry_type_index = rng.gen_range(0..3);
+            
+            let infantry_type = match player_faction.0 {
+                Faction::Entente => {
+                    match infantry_type_index {
+                        0 => InfantryType::Entente(EntenteInfantryType::Russian),
+                        1 => InfantryType::Entente(EntenteInfantryType::British),
+                        _ => InfantryType::Entente(EntenteInfantryType::French),
+                    }
+                },
+                Faction::CentralPowers => {
+                    match infantry_type_index {
+                        0 => InfantryType::CentralPowers(CentralPowersInfantryType::German),
+                        1 => InfantryType::CentralPowers(CentralPowersInfantryType::Turkish),
+                        _ => InfantryType::CentralPowers(CentralPowersInfantryType::AustroHungarian),
+                    }
+                },
+            };
+            
+            // Get model path based on infantry type
+            let model_path = match infantry_type {
+                InfantryType::Entente(entente_type) => {
+                    match entente_type {
+                        EntenteInfantryType::Russian => "models/infantry/russian_soldier.glb#Scene0",
+                        EntenteInfantryType::British => "models/infantry/british_soldier.glb#Scene0",
+                        EntenteInfantryType::French => "models/infantry/french_soldier.glb#Scene0",
+                    }
+                },
+                InfantryType::CentralPowers(central_type) => {
+                    match central_type {
+                        CentralPowersInfantryType::German => "models/infantry/german_soldier.glb#Scene0",
+                        CentralPowersInfantryType::Turkish => "models/infantry/turkish_soldier.glb#Scene0",
+                        CentralPowersInfantryType::AustroHungarian => "models/infantry/austrian_soldier.glb#Scene0",
+                    }
+                },
+            };
+            
+            // Get stats for this infantry type
+            let stats = infantry_type.get_stats();
+            
+            info!("🔥 INFANTRY: Loading model from path: {}", model_path);
+            let entity_id = commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(position)
+                        .with_scale(Vec3::splat(0.5)),
+                    ..default()
+                },
+                Infantry,
+                InfantryAttributes {
+                    infantry_type,
+                },
+                stats,
+                Health {
+                    current: stats.health,
+                    max: stats.max_health,
+                },
+                CanShoot {
+                    cooldown: 1.0 / stats.attack_speed,
+                    last_shot: 0.0,
+                    range: 10.0,
+                    damage: stats.attack_damage,
+                },
+                ShapeType::Infantry,
+                Selectable,
+                HoveredOutline,
+                RigidBody::Dynamic,
+                LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
+                bevy_mod_picking::prelude::PickableBundle::default(),
+                Name::new("Player Infantry"),
+            )).id();
+            info!("🔥 INFANTRY SPAWNED: Entity {:?} at position {:?} with Selectable component", entity_id, position);
         },
         _ => {
             info!("Placement for {:?} not implemented yet", shape_type);

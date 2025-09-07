@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_mod_picking::prelude::*;
 use crate::menu::main_menu::Faction;
-use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank, Mine, SteelFactory, PetrochemicalPlant};
+use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank, Mine, SteelFactory, PetrochemicalPlant, Selectable};
 use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil, AIMoney, AIWood, AIIron, AISteel, AIOil, PurchasableItem, can_afford_item_ai, deduct_resources_ai};
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
@@ -206,20 +206,37 @@ fn simple_spawn_ai_unit(
     match item {
         PurchasableItem::Tank => {
             let faction = ai_faction.get_opposite();
-            let model_path = match faction {
-                Faction::Entente => "models/entente/tanks/mark1.glb#Scene0",
-                Faction::CentralPowers => "models/central_powers/tanks/a7v.glb#Scene0",
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let tank_type_index = rng.gen_range(0..3);
+            
+            let (model_path, scale) = match faction {
+                Faction::Entente => {
+                    match tank_type_index {
+                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.1), // tsar_tank уменьшен в 4 раза
+                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 уменьшен в 5 раз
+                        _ => ("models/entente/tanks/renault_ft17.glb#Scene0", 0.4), // renault остается нормальным
+                    }
+                },
+                Faction::CentralPowers => {
+                    match tank_type_index {
+                        0 => ("models/central_powers/tanks/panzerwagen.glb#Scene0", 0.08), // panzerwagen уменьшен в 5 раз
+                        1 => ("models/central_powers/tanks/a7v.glb#Scene0", 0.08), // a7v уменьшен в 5 раз
+                        _ => ("models/central_powers/tanks/steam_wheel_tank.glb#Scene0", 0.08), // steam_wheel остается как был
+                    }
+                },
             };
             let tank_entity = commands.spawn((
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos)
-                        .with_scale(Vec3::splat(0.042)),
+                        .with_scale(Vec3::splat(scale)),
                     ..default()
                 },
                 ShapeType::Cube,
                 Enemy,
                 Tank,
+                Selectable,
                 Health { current: 100.0, max: 100.0 },
                 CanShoot {
                     cooldown: 1.2,
@@ -228,7 +245,7 @@ fn simple_spawn_ai_unit(
                     damage: 12.0,
                 },
                 RigidBody::Dynamic,
-                Collider::cuboid(0.5, 0.5, 0.5),
+                Collider::cuboid(2.0, 2.0, 2.0), // Увеличенный коллайдер для лучшей кликабельности
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
@@ -239,15 +256,38 @@ fn simple_spawn_ai_unit(
             // Добавляем видимый клик-коллайдер для отладки - пока отложим
         }
         PurchasableItem::Infantry => {
+            let faction = ai_faction.get_opposite();
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let infantry_type_index = rng.gen_range(0..3);
+            
+            let model_path = match faction {
+                Faction::Entente => {
+                    match infantry_type_index {
+                        0 => "models/infantry/russian_soldier.glb#Scene0",
+                        1 => "models/infantry/british_soldier.glb#Scene0",
+                        _ => "models/infantry/french_soldier.glb#Scene0",
+                    }
+                },
+                Faction::CentralPowers => {
+                    match infantry_type_index {
+                        0 => "models/infantry/german_soldier.glb#Scene0",
+                        1 => "models/infantry/turkish_soldier.glb#Scene0",
+                        _ => "models/infantry/austrian_soldier.glb#Scene0",
+                    }
+                },
+            };
+            
             commands.spawn((
                 SceneBundle {
-                    scene: asset_server.load("models/infantry/german_soldier.glb#Scene0"),
+                    scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos)
                         .with_scale(Vec3::splat(0.8)),
                     ..default()
                 },
                 ShapeType::Infantry,
                 Enemy,
+                Selectable,
                 Health { current: 60.0, max: 60.0 },
                 CanShoot {
                     cooldown: 0.9,
@@ -256,25 +296,41 @@ fn simple_spawn_ai_unit(
                     damage: 8.0,
                 },
                 RigidBody::Dynamic,
-                Collider::ball(0.5),
+                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
-                PickableBundle::default(),
+                bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("AI Infantry"),
             ));
         }
         PurchasableItem::Airplane => {
             let faction = ai_faction.get_opposite();
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let aircraft_type_index = rng.gen_range(0..3);
+            
             let model_path = match faction {
-                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
-                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                Faction::Entente => {
+                    match aircraft_type_index {
+                        0 => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                        1 => "models/entente/airplanes/breguet_14.glb#Scene0",
+                        _ => "models/entente/airplanes/ilya_muromets.glb#Scene0",
+                    }
+                },
+                Faction::CentralPowers => {
+                    match aircraft_type_index {
+                        0 => "models/central_powers/airplanes/fokker.glb#Scene0",
+                        1 => "models/central_powers/airplanes/albatros.glb#Scene0",
+                        _ => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                    }
+                },
             };
             commands.spawn((
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 10.0, 0.0))
-                        .with_scale(Vec3::splat(0.1)),
+                        .with_scale(Vec3::splat(0.6)),
                     ..default()
                 },
                 ShapeType::Airplane,
@@ -405,12 +461,13 @@ fn spawn_ai_unit(
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.0, 0.0))
-                        .with_scale(Vec3::splat(0.042)),
+                        .with_scale(Vec3::splat(0.4)),
                     ..default()
                 },
                 ShapeType::Cube,
                 Enemy,
                 Tank,
+                Selectable,
                 Health { current: 100.0, max: 100.0 },
                 CanShoot {
                     cooldown: 1.2,
@@ -428,15 +485,38 @@ fn spawn_ai_unit(
             ));
         }
         PurchasableItem::Infantry => {
+            let faction = ai_faction.get_opposite();
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let infantry_type_index = rng.gen_range(0..3);
+            
+            let model_path = match faction {
+                Faction::Entente => {
+                    match infantry_type_index {
+                        0 => "models/infantry/russian_soldier.glb#Scene0",
+                        1 => "models/infantry/british_soldier.glb#Scene0",
+                        _ => "models/infantry/french_soldier.glb#Scene0",
+                    }
+                },
+                Faction::CentralPowers => {
+                    match infantry_type_index {
+                        0 => "models/infantry/german_soldier.glb#Scene0",
+                        1 => "models/infantry/turkish_soldier.glb#Scene0",
+                        _ => "models/infantry/austrian_soldier.glb#Scene0",
+                    }
+                },
+            };
+            
             commands.spawn((
                 SceneBundle {
-                    scene: asset_server.load("models/infantry/german_soldier.glb#Scene0"),
+                    scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.0, 0.0))
                         .with_scale(Vec3::splat(0.8)),
                     ..default()
                 },
                 ShapeType::Infantry,
                 Enemy,
+                Selectable,
                 Health { current: 60.0, max: 60.0 },
                 CanShoot {
                     cooldown: 0.9,
@@ -445,25 +525,41 @@ fn spawn_ai_unit(
                     damage: 8.0,
                 },
                 RigidBody::Dynamic,
-                Collider::ball(0.5), // Коллайдер пехоты ИИ
+                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
                 Restitution::coefficient(0.0), // Без отскока
                 Friction::coefficient(0.8), // Трение
-                PickableBundle::default(),
+                bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("AI Infantry"),
             ));
         }
         PurchasableItem::Airplane => {
             let faction = ai_faction.get_opposite();
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let aircraft_type_index = rng.gen_range(0..3);
+            
             let model_path = match faction {
-                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
-                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                Faction::Entente => {
+                    match aircraft_type_index {
+                        0 => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                        1 => "models/entente/airplanes/breguet_14.glb#Scene0",
+                        _ => "models/entente/airplanes/ilya_muromets.glb#Scene0",
+                    }
+                },
+                Faction::CentralPowers => {
+                    match aircraft_type_index {
+                        0 => "models/central_powers/airplanes/fokker.glb#Scene0",
+                        1 => "models/central_powers/airplanes/albatros.glb#Scene0",
+                        _ => "models/central_powers/airplanes/red_baron.glb#Scene0",
+                    }
+                },
             };
             commands.spawn((
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 10.0, 0.0))
-                        .with_scale(Vec3::splat(0.1)),
+                        .with_scale(Vec3::splat(0.6)),
                     ..default()
                 },
                 ShapeType::Airplane,

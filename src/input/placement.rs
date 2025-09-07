@@ -50,6 +50,7 @@ pub fn handle_placement_clicks(
     query_ground: Query<(), With<Ground>>,
     pending_placement_query: Query<(Entity, &ShapeType), With<PlacementPending>>,
     mut pending_purchase: ResMut<PendingPurchase>,
+    mut placement_state: ResMut<crate::game::PlacementState>,
     mut click_circle: ResMut<ClickCircle>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -57,8 +58,62 @@ pub fn handle_placement_clicks(
     time: Res<Time>,
     player_faction: Res<crate::game::units::PlayerFaction>,
 ) {
-    // First handle the case when there is a pending purchase (PendingPurchase)
-    if pending_purchase.shape_type.is_some() {
+    // First handle the new PlacementState system
+    if placement_state.active && placement_state.shape_type.is_some() {
+        let mut clicked_on_ground = false;
+        let mut ground_click_position: Option<Vec3> = None;
+        
+        for event in click_events.read() {
+            // Only process left clicks
+            if event.button != PointerButton::Primary {
+                continue;
+            }
+            
+            info!("handle_placement_clicks: Processing PlacementState click event on target {:?}", event.target);
+            
+            if query_ground.get(event.target).is_ok() {
+                clicked_on_ground = true;
+                if let Some(position) = event.hit.position {
+                    ground_click_position = Some(position);
+                    info!("handle_placement_clicks: Ground selected for PlacementState placement at position {:?}", position);
+                } else {
+                    info!("handle_placement_clicks: Clicked on ground for PlacementState but no position available");
+                }
+            }
+        }
+        
+        if clicked_on_ground && ground_click_position.is_some() {
+            let target_position = ground_click_position.unwrap();
+            
+            if let Some(shape_type) = placement_state.shape_type.as_ref() {
+                info!("handle_placement_clicks: Placing PlacementState object of type {:?} at position {:?}", shape_type, target_position);
+                
+                // Create object at click position using place_shape function
+                place_shape(
+                    &mut commands, 
+                    shape_type.clone(), 
+                    target_position, 
+                    &mut meshes, 
+                    &mut materials,
+                    &asset_server,
+                    &player_faction,
+                );
+                
+                // Update click circle display information
+                click_circle.position = Some(target_position);
+                click_circle.spawn_time = Some(time.elapsed_seconds());
+                
+                // Reset placement state
+                placement_state.active = false;
+                placement_state.shape_type = None;
+                
+                info!("handle_placement_clicks: PlacementState object placed successfully, placement mode deactivated");
+                return; // Exit since purchase has been handled
+            }
+        }
+    }
+    // Handle the old PendingPurchase system for backward compatibility
+    else if pending_purchase.shape_type.is_some() {
         let mut clicked_on_ground = false;
         let mut ground_click_position: Option<Vec3> = None;
         

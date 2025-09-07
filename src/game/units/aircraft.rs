@@ -148,16 +148,16 @@ pub fn spawn_aircraft(
     let model_path = match aircraft_type {
         AircraftType::Entente(entente_type) => {
             match entente_type {
-                EntenteAircraftType::Sopwith => "models/aircraft/sopwith_camel.glb#Scene0",
-                EntenteAircraftType::Spad => "models/aircraft/spad_xiii.glb#Scene0",
-                EntenteAircraftType::Sikorsky => "models/aircraft/sikorsky_ilya_muromets.glb#Scene0",
+                EntenteAircraftType::Sopwith => "assets/models/entente/airplanes/sopwith_camel.glb#Scene0",
+                EntenteAircraftType::Spad => "assets/models/entente/airplanes/breguet_14.glb#Scene0",
+                EntenteAircraftType::Sikorsky => "assets/models/entente/airplanes/ilya_muromets.glb#Scene0",
             }
         },
         AircraftType::CentralPowers(central_type) => {
             match central_type {
-                CentralPowersAircraftType::Fokker => "models/aircraft/fokker_dr1.glb#Scene0",
-                CentralPowersAircraftType::Albatros => "models/aircraft/albatros_d3.glb#Scene0",
-                CentralPowersAircraftType::Gotha => "models/aircraft/gotha_g5.glb#Scene0",
+                CentralPowersAircraftType::Fokker => "assets/models/central_powers/airplanes/fokker.glb#Scene0",
+                CentralPowersAircraftType::Albatros => "assets/models/central_powers/airplanes/albatros.glb#Scene0",
+                CentralPowersAircraftType::Gotha => "assets/models/central_powers/airplanes/red_baron.glb#Scene0",
             }
         },
     };

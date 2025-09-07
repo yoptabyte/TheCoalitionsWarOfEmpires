@@ -410,6 +410,21 @@ pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<Asset
             OnMainMenuScreen,
         ))
         .with_children(|parent| {
+            // Title text centered at the top
+            parent.spawn(TextBundle::from_section(
+                "Choose Coalition",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 48.0,
+                    color: Color::WHITE,
+                }
+            ).with_style(Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(100.0),
+                align_self: AlignSelf::Center,
+                ..default()
+            }));
+
             // Container for the two faction images
             parent
                 .spawn(NodeBundle {
@@ -425,37 +440,79 @@ pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<Asset
                     ..default()
                 })
                 .with_children(|parent| {
-                    // Entente faction image
-                    parent.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(440.0),
-                                height: Val::Px(420.0),
-                                margin: UiRect::all(Val::Px(30.0)),
-                                ..default()
-                            },
-                            image: UiImage::new(entente_image),
-                            background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                    // Entente faction container
+                    parent.spawn(NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
                             ..default()
                         },
-                        Faction::Entente,
-                    ));
+                        background_color: Color::NONE.into(),
+                        ..default()
+                    }).with_children(|parent| {
+                        // Entente faction image
+                        parent.spawn((
+                            ButtonBundle {
+                                style: Style {
+                                    width: Val::Px(440.0),
+                                    height: Val::Px(420.0),
+                                    margin: UiRect::all(Val::Px(30.0)),
+                                    ..default()
+                                },
+                                image: UiImage::new(entente_image),
+                                background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                                ..default()
+                            },
+                            Faction::Entente,
+                        ));
+                        
+                        // Entente label
+                        parent.spawn(TextBundle::from_section(
+                            "Entente",
+                            TextStyle {
+                                font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                font_size: 32.0,
+                                color: Color::WHITE,
+                            }
+                        ));
+                    });
 
-                    // Central Powers faction image
-                    parent.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(440.0),
-                                height: Val::Px(420.0),
-                                margin: UiRect::all(Val::Px(30.0)),
-                                ..default()
-                            },
-                            image: UiImage::new(central_powers_image),
-                            background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                    // Central Powers faction container
+                    parent.spawn(NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
                             ..default()
                         },
-                        Faction::CentralPowers,
-                    ));
+                        background_color: Color::NONE.into(),
+                        ..default()
+                    }).with_children(|parent| {
+                        // Central Powers faction image
+                        parent.spawn((
+                            ButtonBundle {
+                                style: Style {
+                                    width: Val::Px(440.0),
+                                    height: Val::Px(420.0),
+                                    margin: UiRect::all(Val::Px(30.0)),
+                                    ..default()
+                                },
+                                image: UiImage::new(central_powers_image),
+                                background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                                ..default()
+                            },
+                            Faction::CentralPowers,
+                        ));
+                        
+                        // Central Powers label
+                        parent.spawn(TextBundle::from_section(
+                            "Central Powers",
+                            TextStyle {
+                                font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                                font_size: 32.0,
+                                color: Color::WHITE,
+                            }
+                        ));
+                    });
                 });
         });
 

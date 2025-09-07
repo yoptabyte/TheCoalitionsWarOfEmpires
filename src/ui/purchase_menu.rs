@@ -102,6 +102,7 @@ pub fn handle_purchase_button(
     
     for interaction in &interaction_query {
         if *interaction == Interaction::Pressed {
+            info!("🔥 PURCHASE BUTTON PRESSED! Opening menu...");
             purchase_menu_state.set(PurchaseMenuState::Open);
             notification_state.purchase_menu_opened = true;
             
@@ -644,8 +645,11 @@ pub fn handle_unit_purchase(
             };
             
             // Check if player can afford the item and can build it
+            info!("🔥 NEW UI: Button pressed for item {:?}", item);
             if can_build && crate::ui::money_ui::can_afford_item(item, &money, &wood, &iron, &steel, &oil) {
+                info!("🔥 NEW UI: Player can afford {:?}, setting placement state", item);
                 // Set the placement state based on the button type
+                info!("🔥 NEW UI: Setting placement_state.active = true for {:?}", item);
                 placement_state.active = true;
                 
                 match button_type {

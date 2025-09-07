@@ -147,16 +147,16 @@ pub fn spawn_tank(
     let model_path = match tank_type {
         TankType::Entente(entente_type) => {
             match entente_type {
-                EntenteTankType::TsarTank => "models/tanks/tsar_tank.glb#Scene0",
-                EntenteTankType::Mark1 => "models/tanks/mark1.glb#Scene0",
-                EntenteTankType::RenaultFT => "models/tanks/renault_ft.glb#Scene0",
+                EntenteTankType::TsarTank => "models/entente/tanks/tsar_tank.glb#Scene0",
+                EntenteTankType::Mark1 => "models/entente/tanks/mark1.glb#Scene0",
+                EntenteTankType::RenaultFT => "models/entente/tanks/renault_ft17.glb#Scene0",
             }
         },
         TankType::CentralPowers(central_type) => {
             match central_type {
-                CentralPowersTankType::AustroDaimlerPanzerwagen => "models/tanks/austro_daimler_panzerwagen.glb#Scene0",
-                CentralPowersTankType::A7V => "models/tanks/a7v.glb#Scene0",
-                CentralPowersTankType::OttomanTank => "models/tanks/ottoman_tank.glb#Scene0",
+                CentralPowersTankType::AustroDaimlerPanzerwagen => "models/central_powers/tanks/panzerwagen.glb#Scene0",
+                CentralPowersTankType::A7V => "models/central_powers/tanks/a7v.glb#Scene0",
+                CentralPowersTankType::OttomanTank => "models/central_powers/tanks/steam_wheel_tank.glb#Scene0",
             }
         },
     };

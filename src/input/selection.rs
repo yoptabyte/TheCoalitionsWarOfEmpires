@@ -4,7 +4,8 @@ use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 use bevy_rapier3d::prelude::*;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy, Tank, Aircraft};
+use crate::game::units::infantry::Infantry;
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 /// Resource for tracking mouse position in world space
@@ -18,23 +19,120 @@ pub struct ProcessedClicks {
     pub processed_ids: Vec<PointerId>,
 }
 
+/// Debug system to log all click events regardless of what they hit
+pub fn debug_all_clicks(
+    mut click_events: EventReader<Pointer<Click>>,
+    turn_state: Res<TurnState>,
+) {
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
+    
+    for event in click_events.read() {
+        info!("🔥🔥🔥 DEBUG ALL CLICKS: Got click event - button: {:?}, target: {:?}, position: {:?}", 
+              event.button, event.target, event.hit.position);
+    }
+}
+
+/// Alternative unit selection system using mouse input and raycasting
+pub fn raycast_unit_selection(
+    buttons: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<crate::game::MainCamera>>,
+    rapier_context: Res<RapierContext>,
+    mut selected_entity: ResMut<SelectedEntity>,
+    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>)>,
+    turn_state: Res<TurnState>,
+    mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
+) {
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
+
+    // Check for mouse click
+    if buttons.just_pressed(MouseButton::Left) {
+        let window = windows.single();
+        if let Some(cursor_position) = window.cursor_position() {
+            if let Ok((camera, camera_transform)) = camera_q.get_single() {
+                info!("🔥 RAYCAST: Mouse clicked at screen position {:?}", cursor_position);
+                
+                // Convert screen coordinates to world ray
+                if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
+                    info!("🔥 RAYCAST: Created ray from {:?} in direction {:?}", ray.origin, ray.direction);
+                    
+                    // Perform raycast
+                    let hit = rapier_context.cast_ray(
+                        ray.origin,
+                        *ray.direction,
+                        f32::MAX,
+                        true,
+                        QueryFilter::default()
+                    );
+                    
+                    if let Some((entity, _toi)) = hit {
+                        info!("🔥 RAYCAST: Hit entity {:?}", entity);
+                        
+                        // Check if the hit entity is selectable
+                        if query_selectable.get(entity).is_ok() {
+                            info!("🔥 RAYCAST: ✅ Entity {:?} is selectable! Selecting it.", entity);
+                            selected_entity.0 = Some(entity);
+                            camera_movement_state.manual_camera_mode = false;
+                        } else {
+                            info!("🔥 RAYCAST: ❌ Entity {:?} is not selectable", entity);
+                        }
+                    } else {
+                        info!("🔥 RAYCAST: No entity hit");
+                    }
+                } else {
+                    info!("🔥 RAYCAST: Could not create ray from cursor position");
+                }
+            } else {
+                info!("🔥 RAYCAST: Could not get camera");
+            }
+        } else {
+            info!("🔥 RAYCAST: No cursor position");
+        }
+    }
+}
+
 /// system for selecting an entity
 pub fn select_entity_system(
     mut click_events: EventReader<Pointer<Click>>,
     mut selected_entity: ResMut<SelectedEntity>,
-    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>, Without<SteelFactory>, Without<PetrochemicalPlant>)>,
+    query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>)>,
     query_attackable: Query<Entity, Or<(With<Enemy>, With<EnemyTower>)>>,
     query_enemy_targetable: Query<Entity, (With<Enemy>, With<Health>)>, // Enemy units/buildings that can be targeted
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
     turn_state: Res<TurnState>,
+    // Add queries to debug what components entities actually have
+    debug_query: Query<(Option<&Selectable>, Option<&Enemy>, Option<&Tank>, Option<&Infantry>, Option<&Aircraft>)>,
 ) {
     // Блокируем все клики во время хода ИИ
     if turn_state.current_player != PlayerTurn::Human {
         return;
     }
+    
+    // Log if we have any click events at all
+    let click_count = click_events.len();
+    if click_count > 0 {
+        info!("🔥 select_entity_system: Received {} click events", click_count);
+    }
+    
     for event in click_events.read() {
+        info!("🔥 RAW CLICK EVENT: button: {:?}, target: {:?}, position: {:?}", 
+              event.button, event.target, event.hit.position);
+              
         if event.button != PointerButton::Primary {
+            info!("🔥 Ignoring non-primary button click: {:?}", event.button);
             continue;
+        }
+        
+        // Debug: Check what components this entity has
+        if let Ok((selectable, enemy, tank, infantry, aircraft)) = debug_query.get(event.target) {
+            info!("🔥 CLICK DEBUG: Entity {:?} has - Selectable: {:?}, Enemy: {:?}, Tank: {:?}, Infantry: {:?}, Aircraft: {:?}", 
+                  event.target, selectable.is_some(), enemy.is_some(), tank.is_some(), infantry.is_some(), aircraft.is_some());
+        } else {
+            info!("🔥 CLICK DEBUG: Entity {:?} - could not query components", event.target);
         }
         
         let is_selectable = query_selectable.get(event.target).is_ok();
@@ -45,7 +143,7 @@ pub fn select_entity_system(
               event.target, is_selectable, is_attackable, is_enemy_targetable);
         
         if is_selectable {
-            info!("select_entity_system: Clicked on selectable object {:?}, previously selected: {:?}", event.target, selected_entity.0);
+            info!("select_entity_system: ✅ Clicked on selectable object {:?}, previously selected: {:?}", event.target, selected_entity.0);
             
             if selected_entity.0 != Some(event.target) {
                 selected_entity.0 = Some(event.target);
@@ -229,6 +327,7 @@ pub fn handle_placement_clicks(
     mut placement_state: ResMut<crate::game::PlacementState>,
     mut processed_clicks: ResMut<ProcessedClicks>,
     turn_state: Res<TurnState>,
+    player_faction: Res<crate::game::units::PlayerFaction>,
 ) {
     // Блокируем все клики во время хода ИИ
     if turn_state.current_player != PlayerTurn::Human {
@@ -267,190 +366,31 @@ pub fn handle_placement_clicks(
         
         info!("handle_placement_clicks: Placing object of type {:?} at position {:?}", shape_type, target_point);
         
-        // Create object based on its type at click position
-        match shape_type {
-            ShapeType::Cube => {
-                commands.spawn((
-                    PbrBundle {
-                        mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::rgb(0.8, 0.7, 0.6),
-                            ..default()
-                        }),
-                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 0.5, 0.0)),
-                        ..default()
-                    },
-                    shape_type,
-                    crate::game::components::Selectable,
-                    crate::game::components::HoveredOutline,
-                    crate::game::components::Health {
-                        current: 100.0,
-                        max: 100.0,
-                    },
-                    crate::game::components::CanShoot {
-                        cooldown: 1.0,
-                        last_shot: 0.0,
-                        range: 10.0,
-                        damage: 10.0,
-                    },
-                    crate::game::components::Tank,
-                    RigidBody::Dynamic,
-                    Collider::cuboid(0.5, 0.5, 0.5), // Коллайдер танка
-                    LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
-                    Restitution::coefficient(0.0), // Без отскока
-                    Friction::coefficient(0.8), // Трение
-                    PickableBundle::default(),
-                    Name::new("Tank"),
-                ));
-            }
-            ShapeType::Infantry => {
-                commands.spawn((
-                    PbrBundle {
-                        mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::rgb(0.2, 0.5, 0.8),
-                            ..default()
-                        }),
-                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 0.5, 0.0)),
-                        ..default()
-                    },
-                    shape_type,
-                    crate::game::Selectable,
-                    crate::game::HoveredOutline,
-                    crate::game::Health {
-                        current: 60.0,
-                        max: 60.0,
-                    },
-                    crate::game::CanShoot {
-                        cooldown: 0.8,
-                        last_shot: 0.0,
-                        range: 12.0,
-                        damage: 8.0,
-                    },
-                    RigidBody::Dynamic,
-                    Collider::ball(0.5), // Коллайдер пехоты
-                    LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
-                    Restitution::coefficient(0.0), // Без отскока
-                    Friction::coefficient(0.8), // Трение
-                    PickableBundle::default(),
-                    Name::new("Infantry"),
-                ));
-            }
-            ShapeType::Airplane => {
-                commands.spawn((
-                    PbrBundle {
-                        mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 4.0))),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::rgb(0.8, 0.8, 0.8),
-                            ..default()
-                        }),
-                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 10.0, 0.0)),
-                        ..default()
-                    },
-                    shape_type,
-                    crate::game::components::Selectable,
-                    crate::game::components::HoveredOutline,
-                    crate::game::components::Aircraft {
-                        height: 10.0,
-                        speed: 5.0,
-                    },
-                    crate::game::components::Health {
-                        current: 75.0,
-                        max: 75.0,
-                    },
-                    crate::game::components::CanShoot {
-                        cooldown: 0.5,
-                        last_shot: 0.0,
-                        range: 20.0,
-                        damage: 15.0,
-                    },
-                    RigidBody::Dynamic,
-                    Collider::cuboid(1.0, 0.25, 2.0), // Коллайдер самолета
-                    LockedAxes::ROTATION_LOCKED, // Заблокируем только вращение, самолеты могут двигаться по Y
-                    Restitution::coefficient(0.0), // Без отскока
-                    Friction::coefficient(0.0), // Без трения в воздухе
-                    PickableBundle::default(),
-                ));
-            }
-            ShapeType::Tower => {
-                commands.spawn((
-                    PbrBundle {
-                        mesh: meshes.add(Mesh::from(Cuboid::new(1.5, 3.0, 1.5))),
-                        material: materials.add(StandardMaterial {
-                            base_color: Color::rgb(0.5, 0.5, 0.5),
-                            ..default()
-                        }),
-                        transform: Transform::from_translation(target_point + Vec3::new(0.0, 1.5, 0.0)),
-                        ..default()
-                    },
-                    shape_type,
-                    crate::game::components::Selectable,
-                    crate::game::components::HoveredOutline,
-                    PickableBundle::default(),
-                    crate::game::components::Tower {
-                        height: 3.0,
-                    },
-                    crate::game::components::Health {
-                        current: 200.0,
-                        max: 200.0,
-                    },
-                    crate::game::components::CanShoot {
-                        cooldown: 2.0,
-                        last_shot: 0.0,
-                        range: 25.0,
-                        damage: 20.0,
-                    },
-                ));
-            }
-            ShapeType::Farm => {
-                crate::game::farm::spawn_forest_farm(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    target_point,
-                    &asset_server,
-                );
-            }
-            ShapeType::Mine => {
-                crate::game::mine::spawn_active_mine(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    target_point,
-                    &asset_server,
-                );
-            }
-            ShapeType::SteelFactory => {
-                crate::game::steel_factory::spawn_active_steel_factory(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    target_point,
-                    &asset_server,
-                );
-            }
-            ShapeType::PetrochemicalPlant => {
-                crate::game::petrochemical_plant::spawn_active_petrochemical_plant(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    target_point,
-                    &asset_server,
-                );
-            }
-            ShapeType::Trench => {
-                crate::game::spawn_constructing_trench(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    target_point,
-                );
-            }
-        }
+        // Use proper place_shape function to create objects with 3D models
+        info!("🔥🔥🔥 handle_placement_clicks (selection.rs): ABOUT TO CALL place_shape!!!");
+        
+        // Use player faction from system resources for proper model selection
+        info!("🔥 Calling place_shape with shape_type: {:?}", shape_type);
+        crate::ui::money_ui::place_shape(
+            &mut commands,
+            shape_type,
+            target_point,
+            &mut meshes,
+            &mut materials,
+            &asset_server,
+            &player_faction,
+        );
+        info!("🔥 place_shape call completed!");
         
         // Reset placement mode after successful spawn
         placement_state.active = false;
         placement_state.shape_type = None;
+        
+        /*
+        OLD PRIMITIVE CREATION CODE REMOVED - was creating Cuboid/Sphere primitives instead of 3D models
+        The place_shape() function above now handles all object creation properly.
+        
+        */
         
         // Create particle effect at click location
         commands.spawn((

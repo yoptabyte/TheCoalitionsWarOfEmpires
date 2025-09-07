@@ -13,7 +13,7 @@ mod ui;
 mod utils;
 
 use game::*;
-use input::selection::{ProcessedClicks, handle_enemy_clicks};
+use input::selection::{ProcessedClicks, handle_enemy_clicks, select_entity_system, handle_ground_clicks, handle_placement_clicks, debug_all_clicks, raycast_unit_selection};
 use input::*;
 use menu::common::{DisplayQuality, GameState, Volume};
 use systems::*;
@@ -98,7 +98,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            (select_entity_system, handle_enemy_clicks).run_if(in_state(GameState::Game)),
+            (debug_all_clicks, select_entity_system, handle_enemy_clicks, raycast_unit_selection).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,

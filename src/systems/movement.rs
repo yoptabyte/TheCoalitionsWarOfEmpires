@@ -17,7 +17,7 @@ pub fn process_movement_orders(
             let xz_direction = Vec3::new(direction.x, 0.0, direction.z).normalize();
 
             if xz_direction.length_squared() > 0.001 {
-                let target_rotation = Quat::from_rotation_arc(Vec3::Z, xz_direction);
+                let target_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, xz_direction);
                 transform.rotation = transform.rotation.slerp(target_rotation, 0.2);
             }
 
