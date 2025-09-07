@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+use bevy_mod_picking::prelude::*;
 use crate::menu::main_menu::Faction;
 use super::{MilitaryUnit, PlayerFaction};
 use crate::game::components::{CanShoot, Health, ShapeType, Selectable, HoveredOutline, Tank as TankMarker};
@@ -167,7 +169,7 @@ pub fn spawn_tank(
         SceneBundle {
             scene: asset_server.load(model_path),
             transform: Transform::from_translation(position)
-                .with_scale(Vec3::splat(0.8)),
+                .with_scale(Vec3::splat(0.4)),
             ..default()
         },
         TankMarker,
@@ -188,6 +190,16 @@ pub fn spawn_tank(
         ShapeType::Cube, // Using existing Cube shape type for tanks
         Selectable,
         HoveredOutline,
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+        Collider::cuboid(0.8, 0.6, 1.2),
+        PickableBundle::default(),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
     )).id()
 }
 

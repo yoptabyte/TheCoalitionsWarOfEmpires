@@ -582,6 +582,16 @@ pub fn handle_unit_purchase(
     interaction_query: Query<(&Interaction, &UnitPurchaseButton), (Changed<Interaction>, With<Button>)>,
     mut placement_state: ResMut<crate::game::PlacementState>,
     turn_state: Res<TurnState>,
+    // Add resource checks and mutations
+    mut money: ResMut<crate::ui::money_ui::Money>,
+    mut wood: ResMut<crate::ui::money_ui::Wood>,
+    mut iron: ResMut<crate::ui::money_ui::Iron>,
+    mut steel: ResMut<crate::ui::money_ui::Steel>,
+    mut oil: ResMut<crate::ui::money_ui::Oil>,
+    // Add building queries to check limits (only player buildings without Enemy component)
+    player_mines: Query<Entity, (With<crate::game::Mine>, Without<crate::game::Enemy>)>,
+    player_steel_factories: Query<Entity, (With<crate::game::SteelFactory>, Without<crate::game::Enemy>)>,
+    player_petrochemical_plants: Query<Entity, (With<crate::game::PetrochemicalPlant>, Without<crate::game::Enemy>)>,
 ) {
     // Покупки доступны только в ход игрока
     if turn_state.current_player != PlayerTurn::Human {
@@ -590,31 +600,148 @@ pub fn handle_unit_purchase(
     
     for (interaction, button_type) in &interaction_query {
         if *interaction == Interaction::Pressed {
-            // Set the placement state based on the button type
-            placement_state.active = true;
+            // Convert button type to PurchasableItem for cost checking
+            let item = match button_type {
+                UnitPurchaseButton::Infantry(_) => crate::ui::money_ui::PurchasableItem::Infantry,
+                UnitPurchaseButton::Tank(_) => crate::ui::money_ui::PurchasableItem::Tank,
+                UnitPurchaseButton::Aircraft(_) => crate::ui::money_ui::PurchasableItem::Airplane,
+                UnitPurchaseButton::Mine => crate::ui::money_ui::PurchasableItem::Mine,
+                UnitPurchaseButton::SteelFactory => crate::ui::money_ui::PurchasableItem::SteelFactory,
+                UnitPurchaseButton::PetrochemicalPlant => crate::ui::money_ui::PurchasableItem::PetrochemicalPlant,
+            };
             
-            match button_type {
-                UnitPurchaseButton::Infantry(_) => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Infantry);
-                },
-                UnitPurchaseButton::Tank(_) => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Cube);
-                },
-                UnitPurchaseButton::Aircraft(_) => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Airplane);
-                },
+            // Check building limits first
+            let can_build = match button_type {
                 UnitPurchaseButton::Mine => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::Mine);
+                    let current_count = player_mines.iter().count();
+                    if current_count >= 1 {
+                        info!("Cannot build more mines! Limit: 1, Current: {}", current_count);
+                        false
+                    } else {
+                        true
+                    }
                 },
                 UnitPurchaseButton::SteelFactory => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::SteelFactory);
+                    let current_count = player_steel_factories.iter().count();
+                    if current_count >= 1 {
+                        info!("Cannot build more steel factories! Limit: 1, Current: {}", current_count);
+                        false
+                    } else {
+                        true
+                    }
                 },
                 UnitPurchaseButton::PetrochemicalPlant => {
-                    placement_state.shape_type = Some(crate::game::components::ShapeType::PetrochemicalPlant);
+                    let current_count = player_petrochemical_plants.iter().count();
+                    if current_count >= 1 {
+                        info!("Cannot build more petrochemical plants! Limit: 1, Current: {}", current_count);
+                        false
+                    } else {
+                        true
+                    }
                 },
-            }
+                // Units have no limits
+                _ => true,
+            };
             
-            // Menu remains open after selection
+            // Check if player can afford the item and can build it
+            if can_build && crate::ui::money_ui::can_afford_item(item, &money, &wood, &iron, &steel, &oil) {
+                // Set the placement state based on the button type
+                placement_state.active = true;
+                
+                match button_type {
+                    UnitPurchaseButton::Infantry(_) => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::Infantry);
+                    },
+                    UnitPurchaseButton::Tank(_) => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::Cube);
+                    },
+                    UnitPurchaseButton::Aircraft(_) => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::Airplane);
+                    },
+                    UnitPurchaseButton::Mine => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::Mine);
+                    },
+                    UnitPurchaseButton::SteelFactory => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::SteelFactory);
+                    },
+                    UnitPurchaseButton::PetrochemicalPlant => {
+                        placement_state.shape_type = Some(crate::game::components::ShapeType::PetrochemicalPlant);
+                    },
+                }
+                
+                // Deduct resources after successful purchase
+                crate::ui::money_ui::deduct_resources(item, &mut money, &mut wood, &mut iron, &mut steel, &mut oil);
+                
+                info!("Purchase approved for {:?}", item);
+            } else if !can_build {
+                info!("Cannot build {:?}! Building limit reached.", item);
+            } else {
+                info!("Not enough resources to purchase {:?}! Need: Money: {}, Wood: {}, Iron: {}, Steel: {}, Oil: {}", 
+                      item, item.cost(), item.wood_cost(), item.iron_cost(), item.steel_cost(), item.oil_cost());
+            }
+        }
+    }
+}
+
+// System to update button colors based on available resources - triggers on resource changes
+pub fn update_purchase_button_colors(
+    money: Res<crate::ui::money_ui::Money>,
+    wood: Res<crate::ui::money_ui::Wood>,
+    iron: Res<crate::ui::money_ui::Iron>,
+    steel: Res<crate::ui::money_ui::Steel>,
+    oil: Res<crate::ui::money_ui::Oil>,
+    mut button_query: Query<(&UnitPurchaseButton, &mut BackgroundColor, Option<&Interaction>), With<Button>>,
+    // Add building queries to check limits (only player buildings without Enemy component)
+    player_mines: Query<Entity, (With<crate::game::Mine>, Without<crate::game::Enemy>)>,
+    player_steel_factories: Query<Entity, (With<crate::game::SteelFactory>, Without<crate::game::Enemy>)>,
+    player_petrochemical_plants: Query<Entity, (With<crate::game::PetrochemicalPlant>, Without<crate::game::Enemy>)>,
+) {
+    // Force update every frame to ensure buttons show correct colors
+    for (button_type, mut background_color, interaction) in button_query.iter_mut() {
+        // Only skip if button is being pressed (not hovered)
+        if let Some(Interaction::Pressed) = interaction {
+            continue;
+        }
+        // Convert button type to PurchasableItem for cost checking
+        let item = match button_type {
+            UnitPurchaseButton::Infantry(_) => crate::ui::money_ui::PurchasableItem::Infantry,
+            UnitPurchaseButton::Tank(_) => crate::ui::money_ui::PurchasableItem::Tank,
+            UnitPurchaseButton::Aircraft(_) => crate::ui::money_ui::PurchasableItem::Airplane,
+            UnitPurchaseButton::Mine => crate::ui::money_ui::PurchasableItem::Mine,
+            UnitPurchaseButton::SteelFactory => crate::ui::money_ui::PurchasableItem::SteelFactory,
+            UnitPurchaseButton::PetrochemicalPlant => crate::ui::money_ui::PurchasableItem::PetrochemicalPlant,
+        };
+        
+        // Check building limits first
+        let can_build = match button_type {
+            UnitPurchaseButton::Mine => player_mines.iter().count() < 1,
+            UnitPurchaseButton::SteelFactory => player_steel_factories.iter().count() < 1,
+            UnitPurchaseButton::PetrochemicalPlant => player_petrochemical_plants.iter().count() < 1,
+            // Units have no limits
+            _ => true,
+        };
+        
+        // Check if player can afford the item and can build it
+        let can_afford = crate::ui::money_ui::can_afford_item(item, &money, &wood, &iron, &steel, &oil);
+        let can_purchase = can_build && can_afford;
+        
+        // Update button color based on purchase possibility
+        if can_purchase {
+            // Normal color based on unit type
+            *background_color = match button_type {
+                UnitPurchaseButton::Infantry(_) => Color::rgb(0.3, 0.3, 0.7).into(),
+                UnitPurchaseButton::Tank(_) => Color::rgb(0.3, 0.5, 0.7).into(),
+                UnitPurchaseButton::Aircraft(_) => Color::rgb(0.3, 0.3, 0.8).into(),
+                UnitPurchaseButton::Mine => Color::rgb(0.4, 0.6, 0.4).into(),
+                UnitPurchaseButton::SteelFactory => Color::rgb(0.4, 0.6, 0.4).into(),
+                UnitPurchaseButton::PetrochemicalPlant => Color::rgb(0.4, 0.6, 0.4).into(),
+            };
+        } else if !can_build {
+            // Red color when limit reached
+            *background_color = Color::rgb(0.6, 0.2, 0.2).into();
+        } else {
+            // Gray color when can't afford
+            *background_color = Color::rgb(0.3, 0.3, 0.3).into();
         }
     }
 }
@@ -643,7 +770,7 @@ impl Plugin for PurchaseMenuPlugin {
             .add_systems(OnEnter(PurchaseMenuState::Open), spawn_purchase_menu)
             .add_systems(
                 Update,
-                (handle_close_button, handle_unit_purchase).run_if(in_state(PurchaseMenuState::Open))
+                (handle_close_button, handle_unit_purchase, update_purchase_button_colors).run_if(in_state(PurchaseMenuState::Open))
             )
             .add_systems(OnExit(PurchaseMenuState::Open), despawn_purchase_menu);
     }

@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+use bevy_mod_picking::prelude::*;
 use crate::menu::main_menu::Faction;
 use super::{MilitaryUnit, PlayerFaction};
 use crate::game::components::{CanShoot, Health, ShapeType, Selectable, HoveredOutline};
@@ -192,6 +194,16 @@ pub fn spawn_infantry(
         ShapeType::Infantry,
         Selectable,
         HoveredOutline,
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+        Collider::ball(0.5),
+        PickableBundle::default(),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
     )).id()
 }
 

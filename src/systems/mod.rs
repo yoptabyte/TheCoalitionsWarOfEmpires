@@ -4,6 +4,7 @@ pub mod combat;
 pub mod movement;
 pub mod turn_system;
 pub mod ai_opponent;
+pub mod ai_economy;
 
 pub use aircraft::*;
 #[allow(unused_imports)]
@@ -12,6 +13,7 @@ pub use combat::*;
 pub use movement::*;
 pub use turn_system::*;
 pub use ai_opponent::*;
+pub use ai_economy::*;
 use bevy::prelude::ResMut;
 
 pub fn clear_processed_clicks(mut processed_clicks: ResMut<crate::input::selection::ProcessedClicks>) {

@@ -160,19 +160,16 @@ pub fn draw_farm_status(
 /// Spawn a forest farm at the given position
 pub fn spawn_forest_farm(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.0, 0.9, 0.0),
-                emissive: Color::rgb(0.0, 0.3, 0.0),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/forest.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.2)),
             ..default()
         },
         Name::new("ForestFarm"),
@@ -182,6 +179,10 @@ pub fn spawn_forest_farm(
         ForestFarm,
         FarmActive(true),
         FarmIncomeRate(10.0),
+        PickableBundle::default(),
+        bevy_rapier3d::prelude::RigidBody::Fixed,
+        bevy_rapier3d::prelude::Collider::cuboid(1.0, 0.5, 1.0),
+        bevy_rapier3d::prelude::LockedAxes::all(),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -191,30 +192,32 @@ pub fn spawn_forest_farm(
     ));
 }
 
-/// Spawn an inactive forest farm at the given position (requires click to activate)
-pub fn spawn_inactive_forest_farm(
+/// Spawn an active forest farm at the given position
+pub fn spawn_active_forest_farm(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.0, 0.6, 0.0),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/forest.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.2)),
             ..default()
         },
-        Name::new("InactiveForestFarm"),
+        Name::new("ActiveForestFarm"),
         ShapeType::Farm,
         Selectable,
         Farm,
         ForestFarm,
-        FarmActive(false),
-        FarmIncomeRate(0.1),
+        FarmActive(true),
+        FarmIncomeRate(10.0), 
+        PickableBundle::default(),
+        bevy_rapier3d::prelude::RigidBody::Fixed,
+        bevy_rapier3d::prelude::Collider::cuboid(1.0, 0.5, 1.0),
+        bevy_rapier3d::prelude::LockedAxes::all(),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -229,6 +232,7 @@ pub fn spawn_forest_farm_on_keystroke(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     query: Query<&Transform, With<Farm>>,
 ) {
@@ -245,6 +249,7 @@ pub fn spawn_forest_farm_on_keystroke(
             &mut meshes,
             &mut materials,
             position,
+            &asset_server,
         );
     }
 }

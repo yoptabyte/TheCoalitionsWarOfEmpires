@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy::gizmos::gizmos::Gizmos;
-use crate::game::components::{Mine, FarmActive, FarmIncomeRate, MineIronRate, Selectable, HoveredOutline, ShapeType};
+use bevy_rapier3d::prelude::*;
+use crate::game::components::{Mine, FarmActive, FarmIncomeRate, MineIronRate, Selectable, HoveredOutline, ShapeType, Health};
 use crate::game::resources::FarmIncomeTimer;
 use crate::ui::money_ui::{Money, Iron, Wood};
 
@@ -134,18 +135,16 @@ pub fn draw_mine_status(
 /// Spawn an inactive mine at the given position (requires click to activate)
 pub fn spawn_inactive_mine(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.0, 0.0, 0.6),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/mine.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.3)),
             ..default()
         },
         Name::new("InactiveMine"),
@@ -155,6 +154,11 @@ pub fn spawn_inactive_mine(
         FarmActive(false),
         FarmIncomeRate(0.0),
         MineIronRate(0.0),
+        Health { current: 150.0, max: 150.0 },
+        PickableBundle::default(),
+        RigidBody::Fixed,
+        LockedAxes::all(),
+        Collider::cuboid(1.0, 0.5, 1.0),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -169,12 +173,22 @@ pub fn spawn_mine_on_keystroke(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
     query: Query<&Transform, With<Mine>>,
+    // Добавляем запрос для проверки существующих шахт игрока (без Enemy компонента)
+    player_mines: Query<Entity, (With<Mine>, Without<crate::game::Enemy>)>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyM) {
+        // Проверяем, есть ли уже шахта у игрока
+        let existing_mines_count = player_mines.iter().count();
+        if existing_mines_count >= 1 {
+            info!("Cannot build more mines! Player can only have 1 mine maximum.");
+            return;
+        }
+        
         // Check if player has enough resources (100 money, 35 wood)
         if money.0 >= 100.0 && wood.0 >= 35.0 {
             info!("Spawning a mine, cost: 100 money, 35 wood");
@@ -191,6 +205,7 @@ pub fn spawn_mine_on_keystroke(
                 &mut meshes,
                 &mut materials,
                 position,
+                &asset_server,
             );
         } else {
             info!("Not enough resources to spawn a mine! Need 100 money and 35 wood");
@@ -201,19 +216,16 @@ pub fn spawn_mine_on_keystroke(
 /// Spawn an active mine at the given position
 pub fn spawn_active_mine(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.0, 0.0, 0.9),
-                emissive: Color::rgb(0.0, 0.0, 0.3),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/mine.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.3)),
             ..default()
         },
         Name::new("ActiveMine"),
@@ -223,6 +235,11 @@ pub fn spawn_active_mine(
         FarmActive(true),
         FarmIncomeRate(0.6),
         MineIronRate(0.2),
+        Health { current: 150.0, max: 150.0 },
+        PickableBundle::default(),
+        RigidBody::Fixed,
+        LockedAxes::all(),
+        Collider::cuboid(1.0, 0.5, 1.0),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),

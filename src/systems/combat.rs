@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, CanShoot, EnemyTower, ShapeType};
+use crate::game::{SelectedEntity, Enemy, Health, CanShoot, EnemyTower, ShapeType, Mine, SteelFactory, PetrochemicalPlant, LinkedToEnemy};
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 /// system for processing clicks on attackable objects (enemies or towers) with instant hit
@@ -11,6 +11,12 @@ pub fn handle_attacks(
     selected_entity: Res<SelectedEntity>,
     query_enemy: Query<Entity, With<Enemy>>,
     query_enemy_tower: Query<Entity, With<EnemyTower>>,
+    // Buildings that can be attacked (but not forests)
+    query_enemy_mine: Query<Entity, (With<Mine>, With<Enemy>)>,
+    query_enemy_steel_factory: Query<Entity, (With<SteelFactory>, With<Enemy>)>,
+    query_enemy_petro_plant: Query<Entity, (With<PetrochemicalPlant>, With<Enemy>)>,
+    child_query: Query<&crate::game::scene_colliders::ChildOfClickable>,
+    collider_query: Query<&LinkedToEnemy>,
     transform_query: Query<&Transform>,
     can_shoot_query: Query<&CanShoot>,
     mut health_query: Query<&mut Health>,
@@ -19,40 +25,88 @@ pub fn handle_attacks(
 ) {
     // Блокируем все клики во время хода ИИ
     if turn_state.current_player != PlayerTurn::Human {
+        info!("handle_attacks: Blocked - AI turn active");
         return;
     }
+    
+    let click_count = click_events.len();
+    if click_count > 0 {
+        info!("handle_attacks: Processing {} click events", click_count);
+    }
+    
     for event in click_events.read() {
+        info!("handle_attacks: Click event received on entity {:?}, button: {:?}", event.target, event.button);
         if event.button != PointerButton::Primary {
             continue;
         }
         
+        // Check direct targets first
         let is_enemy = query_enemy.get(event.target).is_ok();
         let is_enemy_tower = query_enemy_tower.get(event.target).is_ok();
+        let is_enemy_mine = query_enemy_mine.get(event.target).is_ok();
+        let is_enemy_steel_factory = query_enemy_steel_factory.get(event.target).is_ok();
+        let is_enemy_petro_plant = query_enemy_petro_plant.get(event.target).is_ok();
         
-        let is_valid_target = is_enemy || is_enemy_tower;
+        // Check if this is a mesh child of an enemy (for 3D models)
+        let mut target_entity = event.target;
+        let mut is_child_of_enemy = false;
+        let mut is_click_collider = false;
+        
+        if let Ok(child_of_clickable) = child_query.get(event.target) {
+            info!("Click on mesh child detected, checking parent entity {}", child_of_clickable.parent.index());
+            target_entity = child_of_clickable.parent;
+            is_child_of_enemy = query_enemy.get(target_entity).is_ok() || 
+                              query_enemy_tower.get(target_entity).is_ok() ||
+                              query_enemy_mine.get(target_entity).is_ok() ||
+                              query_enemy_steel_factory.get(target_entity).is_ok() ||
+                              query_enemy_petro_plant.get(target_entity).is_ok();
+            info!("Child of enemy check: is_child_of_enemy = {}", is_child_of_enemy);
+        }
+        
+        // Check if this is a click collider linked to an enemy
+        if let Ok(linked) = collider_query.get(event.target) {
+            info!("Click on linked collider detected, targeting enemy entity {}", linked.0.index());
+            target_entity = linked.0;
+            is_click_collider = true;
+        }
+        
+        let is_valid_target = is_enemy || is_enemy_tower || is_enemy_mine || is_enemy_steel_factory || is_enemy_petro_plant || is_child_of_enemy || is_click_collider;
+        
+        info!("handle_attacks: Click on entity {:?}, is_valid_target: {}", event.target, is_valid_target);
         
         if is_valid_target {
+            info!("handle_attacks: Valid target clicked, selected_entity: {:?}", selected_entity.0);
             if let Some(shooter_entity) = selected_entity.0 {
                 if let Ok(can_shoot) = can_shoot_query.get(shooter_entity) {
+                    info!("handle_attacks: Shooter has CanShoot component, damage: {}, range: {}", can_shoot.damage, can_shoot.range);
                     let current_time = time.elapsed_seconds();
                     
                     if current_time - can_shoot.last_shot >= can_shoot.cooldown {
                         if let (Ok(shooter_transform), Ok(target_transform)) = (
                             transform_query.get(shooter_entity),
-                            transform_query.get(event.target)
+                            transform_query.get(target_entity)
                         ) {
                             let shooter_pos = shooter_transform.translation;
                             let target_pos = target_transform.translation;
                             let distance = (target_pos - shooter_pos).length();
                             
+                            info!("handle_attacks: Distance {} <= range {}: {}", distance, can_shoot.range, distance <= can_shoot.range);
                             if distance <= can_shoot.range {
                                 // Instant hit - apply damage immediately
-                                if let Ok(mut health) = health_query.get_mut(event.target) {
+                                if let Ok(mut health) = health_query.get_mut(target_entity) {
+                                    let old_health = health.current;
                                     health.current -= can_shoot.damage;
+                                    info!("handle_attacks: Damage applied! Health: {} -> {}", old_health, health.current);
                                     
                                     if health.current <= 0.0 {
-                                        commands.entity(event.target).despawn_recursive();
+                                        info!("handle_attacks: Enemy destroyed!");
+                                        // Use try_despawn_recursive to avoid panics if entity is already despawned
+                                        if let Some(entity_commands) = commands.get_entity(target_entity) {
+                                            entity_commands.despawn_recursive();
+                                        }
                                     }
+                                } else {
+                                    info!("handle_attacks: Could not get Health component from target");
                                 }
                                 
                                 // Update last shot time
@@ -62,10 +116,20 @@ pub fn handle_attacks(
                                     range: can_shoot.range,
                                     damage: can_shoot.damage,
                                 });
+                            } else {
+                                info!("handle_attacks: Target too far! Distance: {}, Range: {}", distance, can_shoot.range);
                             }
+                        } else {
+                            info!("handle_attacks: Could not get transforms for shooter or target");
                         }
+                    } else {
+                        info!("handle_attacks: Weapon on cooldown");
                     }
+                } else {
+                    info!("handle_attacks: Selected entity has no CanShoot component");
                 }
+            } else {
+                info!("handle_attacks: No entity selected - cannot attack");
             }
         }
     }

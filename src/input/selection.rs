@@ -4,7 +4,7 @@ use bevy_hanabi::ParticleEffectBundle;
 use bevy_hanabi::ParticleEffect;
 use bevy_rapier3d::prelude::*;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy};
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 /// Resource for tracking mouse position in world space
@@ -24,6 +24,7 @@ pub fn select_entity_system(
     mut selected_entity: ResMut<SelectedEntity>,
     query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>, Without<Farm>, Without<Mine>, Without<SteelFactory>, Without<PetrochemicalPlant>)>,
     query_attackable: Query<Entity, Or<(With<Enemy>, With<EnemyTower>)>>,
+    query_enemy_targetable: Query<Entity, (With<Enemy>, With<Health>)>, // Enemy units/buildings that can be targeted
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
     turn_state: Res<TurnState>,
 ) {
@@ -38,9 +39,10 @@ pub fn select_entity_system(
         
         let is_selectable = query_selectable.get(event.target).is_ok();
         let is_attackable = query_attackable.get(event.target).is_ok();
+        let is_enemy_targetable = query_enemy_targetable.get(event.target).is_ok();
         
-        info!("select_entity_system: Click on entity {:?}, is_selectable: {}, is_attackable: {}", 
-              event.target, is_selectable, is_attackable);
+        info!("select_entity_system: Click on entity {:?}, is_selectable: {}, is_attackable: {}, is_enemy_targetable: {}", 
+              event.target, is_selectable, is_attackable, is_enemy_targetable);
         
         if is_selectable {
             info!("select_entity_system: Clicked on selectable object {:?}, previously selected: {:?}", event.target, selected_entity.0);
@@ -53,9 +55,55 @@ pub fn select_entity_system(
             return;
         }
         
-        if is_attackable && selected_entity.0.is_some() {
-            info!("select_entity_system: Clicked on target object {:?}, keeping selected: {:?}", event.target, selected_entity.0);
-            return;
+        // Allow targeting enemy units/buildings for combat
+        if (is_attackable || is_enemy_targetable) && selected_entity.0.is_some() {
+            info!("select_entity_system: Clicked on enemy target {:?}, keeping selected: {:?}", event.target, selected_entity.0);
+            // Don't return here - let combat system handle the attack!
+        }
+    }
+}
+
+/// System for handling clicks on enemy entities using bevy_mod_picking
+pub fn handle_enemy_clicks(
+    mut click_events: EventReader<Pointer<Click>>,
+    enemy_query: Query<(Entity, &Transform, &Health), With<Enemy>>,
+    collider_query: Query<&LinkedToEnemy>,
+    selected_entity: Res<SelectedEntity>,
+    turn_state: Res<TurnState>,
+) {
+    // Блокируем все клики во время хода ИИ
+    if turn_state.current_player != PlayerTurn::Human {
+        return;
+    }
+
+    for event in click_events.read() {
+        if event.button != PointerButton::Primary {
+            continue;
+        }
+        
+        let mut target_enemy: Option<(Entity, &Transform, &Health)> = None;
+        
+        // Проверяем, кликнули ли напрямую по Enemy entity с Health
+        if let Ok(enemy_data) = enemy_query.get(event.target) {
+            target_enemy = Some(enemy_data);
+        }
+        // Проверяем, кликнули ли по клик-коллайдеру
+        else if let Ok(linked) = collider_query.get(event.target) {
+            if let Ok(enemy_data) = enemy_query.get(linked.0) {
+                target_enemy = Some(enemy_data);
+                info!("Click intercepted by collider, targeting linked enemy {:?}", linked.0);
+            }
+        }
+        
+        if let Some((enemy_entity, enemy_transform, enemy_health)) = target_enemy {
+            info!("Clicked on enemy entity {:?} at position {:?} with health {:.1}/{:.1}", 
+                  enemy_entity, enemy_transform.translation, enemy_health.current, enemy_health.max);
+            
+            if let Some(selected) = selected_entity.0 {
+                info!("Selected unit {:?} will target enemy {:?}", selected, enemy_entity);
+            } else {
+                info!("No unit selected to attack enemy {:?}", enemy_entity);
+            }
         }
     }
 }
@@ -172,6 +220,7 @@ pub fn handle_placement_clicks(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     mut click_events: EventReader<Pointer<Click>>,
     query_ground: Query<(), With<Ground>>,
     mut click_circle: ResMut<ClickCircle>,
@@ -359,30 +408,34 @@ pub fn handle_placement_clicks(
                     &mut meshes,
                     &mut materials,
                     target_point,
+                    &asset_server,
                 );
             }
             ShapeType::Mine => {
-                crate::game::mine::spawn_inactive_mine(
+                crate::game::mine::spawn_active_mine(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
                     target_point,
+                    &asset_server,
                 );
             }
             ShapeType::SteelFactory => {
-                crate::game::steel_factory::spawn_inactive_steel_factory(
+                crate::game::steel_factory::spawn_active_steel_factory(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
                     target_point,
+                    &asset_server,
                 );
             }
             ShapeType::PetrochemicalPlant => {
-                crate::game::petrochemical_plant::spawn_inactive_petrochemical_plant(
+                crate::game::petrochemical_plant::spawn_active_petrochemical_plant(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
                     target_point,
+                    &asset_server,
                 );
             }
             ShapeType::Trench => {

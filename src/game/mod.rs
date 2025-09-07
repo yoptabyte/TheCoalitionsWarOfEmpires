@@ -9,6 +9,8 @@ pub mod steel_factory;
 pub mod trench;
 pub mod units;
 pub mod asset_loader;
+pub mod scene_colliders;
+pub mod click_colliders;
 pub use components::*;
 pub use farm::*;
 pub use mine::*;
@@ -16,11 +18,12 @@ pub use petrochemical_plant::*;
 pub use resources::*;
 pub use steel_factory::*;
 pub use trench::*;
+pub use click_colliders::*;
 // Make units module accessible
 // Units will be accessed through the module path
 
 use crate::menu::common::GameState;
-use crate::ui::money_ui::{Iron, Oil, Steel};
+use crate::ui::money_ui::{Iron, Oil, Steel, AIMoney, AIWood, AIIron, AISteel, AIOil};
 use bevy::prelude::*;
 
 pub fn game_plugin(app: &mut App) {
@@ -29,6 +32,12 @@ pub fn game_plugin(app: &mut App) {
         .init_resource::<Iron>()
         .init_resource::<Steel>()
         .init_resource::<Oil>()
+        // AI Resources
+        .init_resource::<AIMoney>()
+        .init_resource::<AIWood>()
+        .init_resource::<AIIron>()
+        .init_resource::<AISteel>()
+        .init_resource::<AIOil>()
         .init_resource::<TrenchCost>()
         .init_resource::<PlacementState>()
         .init_resource::<units::PlayerFaction>()
@@ -99,6 +108,18 @@ pub fn game_plugin(app: &mut App) {
         .add_systems(
             Update,
             spawn_petrochemical_plant_on_keystroke.run_if(in_state(GameState::Game)),
+        )
+        // Scene collider systems
+        .add_systems(
+            Update,
+            (
+                scene_colliders::add_scene_colliders, 
+                scene_colliders::add_deep_scene_colliders,
+                scene_colliders::add_enemy_scene_colliders,
+                scene_colliders::handle_child_clicks,
+                scene_colliders::handle_child_hover,
+                click_colliders::add_debug_click_colliders,
+            ).run_if(in_state(GameState::Game)),
         )
         // Trench systems
         .add_systems(

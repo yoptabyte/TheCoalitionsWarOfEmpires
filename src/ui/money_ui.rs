@@ -26,6 +26,22 @@ pub struct Steel(pub f32);
 #[derive(Resource, Debug, Default)]
 pub struct Oil(pub f32);
 
+// AI Resources - separate economy for AI
+#[derive(Resource, Debug, Default)]
+pub struct AIMoney(pub f32);
+
+#[derive(Resource, Debug, Default)]
+pub struct AIWood(pub f32);
+
+#[derive(Resource, Debug, Default)]
+pub struct AIIron(pub f32);
+
+#[derive(Resource, Debug, Default)]
+pub struct AISteel(pub f32);
+
+#[derive(Resource, Debug, Default)]
+pub struct AIOil(pub f32);
+
 // Resource to track game time
 #[derive(Resource, Debug, Default)]
 pub struct GameTime {
@@ -37,7 +53,7 @@ pub struct GameTime {
 pub struct UICamera;
 
 // Enum for purchasable items and their costs
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PurchasableItem {
     Tank,
     Infantry,
@@ -45,67 +61,61 @@ pub enum PurchasableItem {
     Mine,
     SteelFactory,
     PetrochemicalPlant,
-    Trench,
 }
 
 impl PurchasableItem {
     pub fn cost(&self) -> f32 {
         match self {
-            PurchasableItem::Tank => 3.0,
-            PurchasableItem::Infantry => 2.0,
-            PurchasableItem::Airplane => 5.0,
-            PurchasableItem::Mine => 7.0,
-            PurchasableItem::SteelFactory => 10.0,
-            PurchasableItem::PetrochemicalPlant => 10.0,
-            PurchasableItem::Trench => 3.0,
+            PurchasableItem::Tank => 45.0,      // Средняя стоимость танков
+            PurchasableItem::Infantry => 16.0,  // Средняя стоимость пехоты  
+            PurchasableItem::Airplane => 40.0,  // Средняя стоимость самолетов
+            PurchasableItem::Mine => 30.0,      // Стоимость шахты
+            PurchasableItem::SteelFactory => 40.0,  // Стоимость сталелитейного завода
+            PurchasableItem::PetrochemicalPlant => 50.0, // Стоимость нефтезавода
         }
     }
     
     pub fn wood_cost(&self) -> f32 {
         match self {
-            PurchasableItem::Tank => 2.0,
-            PurchasableItem::Infantry => 0.0,
-            PurchasableItem::Airplane => 0.0,
-            PurchasableItem::Mine => 3.0,
-            PurchasableItem::SteelFactory => 2.0,
-            PurchasableItem::PetrochemicalPlant => 5.0,
-            PurchasableItem::Trench => 3.0,
+            PurchasableItem::Tank => 5.0,       // Средние требования танков
+            PurchasableItem::Infantry => 0.0,   // Пехота не требует дерева
+            PurchasableItem::Airplane => 9.0,   // Средние требования самолетов
+            PurchasableItem::Mine => 8.0,       // Требования шахты
+            PurchasableItem::SteelFactory => 12.0, // Требования завода
+            PurchasableItem::PetrochemicalPlant => 15.0, // Требования нефтезавода
         }
     }
 
     pub fn iron_cost(&self) -> f32 {
         match self {
-            PurchasableItem::Tank => 2.0,
-            PurchasableItem::Infantry => 0.0,
-            PurchasableItem::Airplane => 0.0,
-            PurchasableItem::Mine => 3.0,
-            PurchasableItem::SteelFactory => 2.0,
-            PurchasableItem::PetrochemicalPlant => 0.0,
-            PurchasableItem::Trench => 0.0,
+            PurchasableItem::Tank => 7.0,       // Средние требования танков
+            PurchasableItem::Infantry => 0.0,   // Пехота не требует железа
+            PurchasableItem::Airplane => 4.0,   // Средние требования самолетов
+            PurchasableItem::Mine => 0.0,       // Шахта не требует железа
+            PurchasableItem::SteelFactory => 15.0, // Требования завода
+            PurchasableItem::PetrochemicalPlant => 10.0, // Требования нефтезавода
         }
     }
     
     pub fn steel_cost(&self) -> f32 {
         match self {
-            PurchasableItem::Tank => 3.0,
-            PurchasableItem::Infantry => 0.0,
-            PurchasableItem::Airplane => 2.0,
-            PurchasableItem::Mine => 0.0,
-            PurchasableItem::SteelFactory => 0.0,
-            PurchasableItem::PetrochemicalPlant => 5.0,
-            PurchasableItem::Trench => 0.0,
+            PurchasableItem::Tank => 6.0,       // Средние требования танков
+            PurchasableItem::Infantry => 0.0,   // Пехота не требует стали
+            PurchasableItem::Airplane => 5.0,   // Средние требования самолетов
+            PurchasableItem::Mine => 0.0,       // Шахта не требует стали
+            PurchasableItem::SteelFactory => 0.0, // Завод не требует стали
+            PurchasableItem::PetrochemicalPlant => 8.0, // Требования нефтезавода
         }
     }
 
     pub fn oil_cost(&self) -> f32 {
         match self {
-            PurchasableItem::Tank => 5.0,
-            PurchasableItem::Infantry => 0.0,
-            PurchasableItem::Airplane => 5.0,
-            PurchasableItem::Mine => 0.0,
-            PurchasableItem::SteelFactory => 0.0,
-            PurchasableItem::PetrochemicalPlant => 0.0,
-            PurchasableItem::Trench => 0.0,
+            PurchasableItem::Tank => 11.0,      // Средние требования танков
+            PurchasableItem::Infantry => 0.0,   // Пехота не требует нефти
+            PurchasableItem::Airplane => 17.0,  // Средние требования самолетов
+            PurchasableItem::Mine => 0.0,       // Шахта не требует нефти
+            PurchasableItem::SteelFactory => 0.0, // Завод не требует нефти
+            PurchasableItem::PetrochemicalPlant => 0.0, // Нефтезавод не требует нефти
         }
     }
 
@@ -117,7 +127,6 @@ impl PurchasableItem {
             PurchasableItem::Mine => ShapeType::Mine,
             PurchasableItem::SteelFactory => ShapeType::SteelFactory,
             PurchasableItem::PetrochemicalPlant => ShapeType::PetrochemicalPlant,
-            PurchasableItem::Trench => ShapeType::Trench,
         }
     }
 }
@@ -130,11 +139,27 @@ pub struct WoodText;
 #[derive(Component)]
 pub struct IronText;
 #[derive(Component)]
-pub struct SteelText;
+struct SteelText;
 #[derive(Component)]
-pub struct OilText;
+struct OilText;
 #[derive(Component)]
-pub struct GameTimeText;
+struct GameTimeText;
+
+// AI Resources display components
+#[derive(Component)]
+struct AIMoneyText;
+
+#[derive(Component)]
+struct AIWoodText;
+
+#[derive(Component)]
+struct AIIronText;
+
+#[derive(Component)]
+struct AISteelText;
+
+#[derive(Component)]
+struct AIOilText;
 #[derive(Component)]
 pub struct SpawnCubeButton;
 #[derive(Component)]
@@ -163,7 +188,7 @@ impl Plugin for MoneyUiPlugin {
             .init_resource::<Steel>()
             .init_resource::<Oil>()
             .init_resource::<GameTime>()
-            .insert_resource(Money(10.0))
+            .insert_resource(Money(45.0))
             .insert_resource(Wood(5.0))
             .insert_resource(Iron(3.0))
             .insert_resource(Steel(0.0))
@@ -171,6 +196,7 @@ impl Plugin for MoneyUiPlugin {
             .insert_resource(GameTime { seconds: 0.0 })
             .add_systems(OnEnter(GameState::Game), setup_money_ui)
             .add_systems(Update, update_resources_text.run_if(in_state(GameState::Game)))
+            .add_systems(Update, update_ai_resources_text.run_if(in_state(GameState::Game)))
             .add_systems(Update, update_game_time.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_spawn_buttons.run_if(in_state(GameState::Game)))
             .add_systems(Update, handle_exit_button.run_if(in_state(GameState::Game)))
@@ -205,7 +231,7 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         TextBundle::from_sections([
             TextSection::new(
-                "Money: 10.0",
+                "Money: 45.0",
                 TextStyle {
                     font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
                     font_size: 30.0,
@@ -370,6 +396,112 @@ fn setup_money_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ));
         });
     });
+
+    // AI Resources Display (right side)
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "AI Money: 0.0",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(1.0, 0.5, 0.5), // Red tint for AI
+                },
+            ),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(60.0),
+            right: Val::Px(10.0),
+            ..default()
+        }),
+        AIMoneyText,
+        OnGameScreen,
+    ));
+
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "AI Wood: 0.0",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.8, 0.4, 0.2),
+                },
+            ),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(85.0),
+            right: Val::Px(10.0),
+            ..default()
+        }),
+        AIWoodText,
+        OnGameScreen,
+    ));
+
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "AI Iron: 0.0",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.7, 0.7, 0.7),
+                },
+            ),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(110.0),
+            right: Val::Px(10.0),
+            ..default()
+        }),
+        AIIronText,
+        OnGameScreen,
+    ));
+
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "AI Steel: 0.0",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.5, 0.5, 0.8),
+                },
+            ),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(135.0),
+            right: Val::Px(10.0),
+            ..default()
+        }),
+        AISteelText,
+        OnGameScreen,
+    ));
+
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "AI Oil: 0.0",
+                TextStyle {
+                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                    font_size: 20.0,
+                    color: Color::rgb(0.2, 0.2, 0.2),
+                },
+            ),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(160.0),
+            right: Val::Px(10.0),
+            ..default()
+        }),
+        AIOilText,
+        OnGameScreen,
+    ));
 }
 
 // Update resources text when they change
@@ -420,27 +552,34 @@ fn update_resources_text(
 
 // System to update wood from forest farms
 fn update_wood_from_forest(
-    time: Res<Time>,
+    _time: Res<Time>,
     mut wood: ResMut<Wood>,
+    mut money: ResMut<Money>,
     query: Query<(&crate::game::ForestFarm, &crate::game::FarmActive)>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = _time.delta_seconds();
     let mut total_wood_income = 0.0;
+    let mut total_money_income = 0.0;
     
     for (_, active) in query.iter() {
         if active.0 {
-            total_wood_income += 0.1 * dt; // 0.1 wood per second
+            total_wood_income += 0.5 * dt; // 0.5 wood per second (faster!)
+            total_money_income += 0.5 * dt; // 0.5 money per second from farms
         }
     }
     
     if total_wood_income > 0.0 {
         wood.0 += total_wood_income;
     }
+    
+    if total_money_income > 0.0 {
+        money.0 += total_money_income;
+    }
 }
 
 // System to update iron from mines
 fn update_iron_from_mines(
-    time: Res<Time>,
+    _time: Res<Time>,
     mut iron: ResMut<Iron>,
     query: Query<(&crate::game::Mine, &crate::game::FarmActive, &crate::game::MineIronRate)>,
 ) {
@@ -461,18 +600,18 @@ fn update_iron_from_mines(
     if iron_per_second > 0.0 {
         // Here we directly update iron outside the farm income timer
         // This prevents large jumps when the timer triggers
-        iron.0 += iron_per_second * time.delta_seconds();
+        iron.0 += iron_per_second * _time.delta_seconds();
     }
 }
 
 // System to update the game time
 fn update_game_time(
-    time: Res<Time>,
+    _time: Res<Time>,
     mut game_time: ResMut<GameTime>,
     mut query: Query<&mut Text, With<GameTimeText>>,
 ) {
     // Update the game time
-    game_time.seconds += time.delta_seconds();
+    game_time.seconds += _time.delta_seconds();
     
     // Get minutes and seconds
     let minutes = (game_time.seconds / 60.0) as u32;
@@ -486,9 +625,10 @@ fn update_game_time(
 
 // Handle button presses for spawning tank/infantry/airplane
 fn handle_spawn_buttons(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    _commands: Commands,
+    _meshes: ResMut<Assets<Mesh>>,
+    _materials: ResMut<Assets<StandardMaterial>>,
+    _asset_server: Res<AssetServer>,
     mut interaction_query: Query<
         (
             &Interaction,
@@ -499,10 +639,9 @@ fn handle_spawn_buttons(
             Option<&SpawnAirplaneButton>,
             Option<&SpawnMineButton>,
             Option<&SpawnSteelFactoryButton>,
-            Option<&SpawnPetrochemicalPlantButton>,
-            Option<&SpawnTrenchButton>
+            Option<&SpawnPetrochemicalPlantButton>
         ),
-        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnInfantryButton>, With<SpawnAirplaneButton>, With<SpawnMineButton>, With<SpawnSteelFactoryButton>, With<SpawnPetrochemicalPlantButton>, With<SpawnTrenchButton>)>)
+        (Changed<Interaction>, Or<(With<SpawnCubeButton>, With<SpawnInfantryButton>, With<SpawnAirplaneButton>, With<SpawnMineButton>, With<SpawnSteelFactoryButton>, With<SpawnPetrochemicalPlantButton>)>)
     >,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
@@ -510,9 +649,9 @@ fn handle_spawn_buttons(
     mut steel: ResMut<Steel>,
     mut oil: ResMut<Oil>,
     mut placement_state: ResMut<crate::game::PlacementState>,
-    time: Res<Time>,
+    _time: Res<Time>,
 ) {
-    for (interaction, mut color, _entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant, is_trench) in &mut interaction_query {
+    for (interaction, mut color, _entity, is_cube, is_infantry, is_airplane, is_mine, is_steel_factory, is_petrochemical_plant) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 let item = if is_cube.is_some() {
@@ -527,61 +666,29 @@ fn handle_spawn_buttons(
                     PurchasableItem::SteelFactory
                 } else if is_petrochemical_plant.is_some() {
                     PurchasableItem::PetrochemicalPlant
-                } else if is_trench.is_some() {
-                    PurchasableItem::Trench
                 } else {
                     continue;
                 };
 
                 // Check if player has enough resources
-                if money.0 >= item.cost() && wood.0 >= item.wood_cost() && iron.0 >= item.iron_cost() && steel.0 >= item.steel_cost() && oil.0 >= item.oil_cost() {
-                    // Set the object placement state
+                if can_afford_item(item, &money, &wood, &iron, &steel, &oil) {
+                    // Set the object placement state for units
                     placement_state.active = true;
                     placement_state.shape_type = Some(item.shape_type());
                     
                     // Deduct resources in advance
-                    money.0 -= item.cost();
-                    wood.0 -= item.wood_cost();
-                    iron.0 -= item.iron_cost();
-                    steel.0 -= item.steel_cost();
-                    oil.0 -= item.oil_cost();
+                    deduct_resources(item, &mut money, &mut wood, &mut iron, &mut steel, &mut oil);
                     
                     info!("Placement mode activated for {:?}", item.shape_type());
-                }
-
-                // Handle trench placement separately (keeping original code)
-                if is_trench.is_some() {
-                    if money.0 >= item.cost() && wood.0 >= item.wood_cost() {
-                        money.0 -= item.cost();
-                        wood.0 -= item.wood_cost();
-                        
-                        // Determine the position for the trench
-                        let seed = time.elapsed_seconds_f64().fract() as f32;
-                        let x = (seed * 100.0).sin() * 10.0 - 5.0;
-                        let z = (seed * 100.0).cos() * 10.0 - 5.0;
-                        let trench_position = Vec3::new(x, 0.0, z);
-                        
-                        info!("Spawning new trench at position: {:?}", trench_position);
-                        
-                        crate::game::spawn_constructing_trench(
-                            &mut commands,
-                            &mut meshes,
-                            &mut materials,
-                            trench_position,
-                        );
-                    } else {
-                        info!("Not enough resources to build a trench!");
-                    }
+                } else {
+                    info!("Not enough resources to purchase {:?}! Need: Money: {}, Wood: {}, Iron: {}, Steel: {}, Oil: {}", 
+                          item, item.cost(), item.wood_cost(), item.iron_cost(), item.steel_cost(), item.oil_cost());
                 }
 
                 *color = Color::GRAY.into();
             }
             Interaction::Hovered => {
                 *color = Color::ORANGE_RED.into();
-                
-                if is_trench.is_some() {
-                    *color = BUTTON_BLUE.into();
-                }
             }
             Interaction::None => {
                 if is_cube.is_some() {
@@ -596,8 +703,6 @@ fn handle_spawn_buttons(
                     *color = Color::rgb(0.6, 0.3, 0.1).into();
                 } else if is_petrochemical_plant.is_some() {
                     *color = Color::rgb(0.0, 0.0, 0.8).into();
-                } else if is_trench.is_some() {
-                    *color = BUTTON_BLUE.into();
                 }
             }
         }
@@ -636,6 +741,7 @@ fn handle_confirm_dialog(
     mut wood: ResMut<Wood>,
     mut iron: ResMut<Iron>,
     mut steel: ResMut<Steel>,
+    mut oil: ResMut<Oil>,
     mut game_time: ResMut<GameTime>,
     dialog_query: Query<Entity, With<ConfirmDialog>>,
 ) {
@@ -649,10 +755,11 @@ fn handle_confirm_dialog(
                     }
                     
                     // Reset resources to initial values
-                    money.0 = 10.0;
+                    money.0 = 45.0;
                     wood.0 = 5.0;
                     iron.0 = 3.0;
                     steel.0 = 0.0;
+                    oil.0 = 0.0;
                     game_time.seconds = 0.0;
                     
                     // Then set states in the correct order
@@ -732,6 +839,7 @@ fn spawn_shape(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     shape_type: ShapeType,
+    asset_server: &AssetServer,
 ) {
     match shape_type {
         ShapeType::Cube => {
@@ -858,30 +966,34 @@ fn spawn_shape(
                 meshes,
                 materials,
                 Vec3::new(0.0, 0.0, 0.0),
+                &asset_server,
             );
         }
         ShapeType::Mine => {
-            crate::game::mine::spawn_inactive_mine(
+            crate::game::mine::spawn_active_mine(
                 commands,
                 meshes,
                 materials,
                 Vec3::new(-15.0, 0.0, 0.0),
+                asset_server,
             );
         }
         ShapeType::SteelFactory => {
-            crate::game::steel_factory::spawn_inactive_steel_factory(
+            crate::game::steel_factory::spawn_active_steel_factory(
                 commands,
                 meshes,
                 materials,
                 Vec3::new(15.0, 0.0, 0.0),
+                asset_server,
             );
         }
         ShapeType::PetrochemicalPlant => {
-            crate::game::petrochemical_plant::spawn_inactive_petrochemical_plant(
+            crate::game::petrochemical_plant::spawn_active_petrochemical_plant(
                 commands,
                 meshes,
                 materials,
                 Vec3::new(10.0, 0.0, -5.0),
+                asset_server,
             );
         }
         ShapeType::Trench => {
@@ -898,6 +1010,240 @@ fn spawn_shape(
                 shape_type,
                 Name::new("Trench"),
             ));
+        }
+    }
+}
+
+// Update AI resources text when they change
+fn update_ai_resources_text(
+    ai_money: Res<AIMoney>, 
+    ai_wood: Res<AIWood>,
+    ai_iron: Res<AIIron>,
+    ai_steel: Res<AISteel>,
+    ai_oil: Res<AIOil>,
+    mut query_set: ParamSet<(
+        Query<&mut Text, With<AIMoneyText>>,
+        Query<&mut Text, With<AIWoodText>>, 
+        Query<&mut Text, With<AIIronText>>,
+        Query<&mut Text, With<AISteelText>>,
+        Query<&mut Text, With<AIOilText>>
+    )>,
+) {
+    // Update AI Money text
+    if ai_money.is_changed() {
+        if let Ok(mut text) = query_set.p0().get_single_mut() {
+            text.sections[0].value = format!("AI Money: {:.1}", ai_money.0);
+        }
+    }
+
+    // Update AI Wood text
+    if ai_wood.is_changed() {
+        if let Ok(mut text) = query_set.p1().get_single_mut() {
+            text.sections[0].value = format!("AI Wood: {:.1}", ai_wood.0);
+        }
+    }
+
+    // Update AI Iron text
+    if ai_iron.is_changed() {
+        if let Ok(mut text) = query_set.p2().get_single_mut() {
+            text.sections[0].value = format!("AI Iron: {:.1}", ai_iron.0);
+        }
+    }
+
+    // Update AI Steel text
+    if ai_steel.is_changed() {
+        if let Ok(mut text) = query_set.p3().get_single_mut() {
+            text.sections[0].value = format!("AI Steel: {:.1}", ai_steel.0);
+        }
+    }
+
+    // Update AI Oil text
+    if ai_oil.is_changed() {
+        if let Ok(mut text) = query_set.p4().get_single_mut() {
+            text.sections[0].value = format!("AI Oil: {:.1}", ai_oil.0);
+        }
+    }
+}
+
+// Helper function to check if player can afford an item
+pub fn can_afford_item(
+    item: PurchasableItem,
+    money: &Money,
+    wood: &Wood,
+    iron: &Iron,
+    steel: &Steel,
+    oil: &Oil,
+) -> bool {
+    money.0 >= item.cost() && 
+    wood.0 >= item.wood_cost() && 
+    iron.0 >= item.iron_cost() && 
+    steel.0 >= item.steel_cost() && 
+    oil.0 >= item.oil_cost()
+}
+
+// Helper function to check if AI can afford an item
+pub fn can_afford_item_ai(
+    item: PurchasableItem,
+    money: &AIMoney,
+    wood: &AIWood,
+    iron: &AIIron,
+    steel: &AISteel,
+    oil: &AIOil,
+) -> bool {
+    money.0 >= item.cost() && 
+    wood.0 >= item.wood_cost() && 
+    iron.0 >= item.iron_cost() && 
+    steel.0 >= item.steel_cost() && 
+    oil.0 >= item.oil_cost()
+}
+
+// Helper function to deduct resources from player
+pub fn deduct_resources(
+    item: PurchasableItem,
+    money: &mut Money,
+    wood: &mut Wood,
+    iron: &mut Iron,
+    steel: &mut Steel,
+    oil: &mut Oil,
+) {
+    money.0 -= item.cost();
+    wood.0 -= item.wood_cost();
+    iron.0 -= item.iron_cost();
+    steel.0 -= item.steel_cost();
+    oil.0 -= item.oil_cost();
+}
+
+// Helper function to deduct resources from AI
+pub fn deduct_resources_ai(
+    item: PurchasableItem,
+    money: &mut AIMoney,
+    wood: &mut AIWood,
+    iron: &mut AIIron,
+    steel: &mut AISteel,
+    oil: &mut AIOil,
+) {
+    money.0 -= item.cost();
+    wood.0 -= item.wood_cost();
+    iron.0 -= item.iron_cost();
+    steel.0 -= item.steel_cost();
+    oil.0 -= item.oil_cost();
+}
+
+// Helper function to place shapes for player
+pub fn place_shape(
+    commands: &mut Commands,
+    shape_type: crate::game::components::ShapeType,
+    position: Vec3,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &AssetServer,
+    player_faction: &Res<crate::game::units::PlayerFaction>,
+) {
+    use crate::game::components::*;
+    use bevy_rapier3d::prelude::*;
+    use bevy_mod_picking::prelude::*;
+    
+    match shape_type {
+        ShapeType::Mine => {
+            crate::game::mine::spawn_active_mine(
+                commands,
+                meshes,
+                materials,
+                position,
+                asset_server,
+            );
+        },
+        ShapeType::SteelFactory => {
+            crate::game::steel_factory::spawn_active_steel_factory(
+                commands,
+                meshes,
+                materials,
+                position,
+                asset_server,
+            );
+        },
+        ShapeType::PetrochemicalPlant => {
+            crate::game::petrochemical_plant::spawn_active_petrochemical_plant(
+                commands,
+                meshes,
+                materials,
+                position,
+                asset_server,
+            );
+        },
+        ShapeType::Cube => {
+            use crate::menu::main_menu::Faction;
+            let model_path = match player_faction.0 {
+                Faction::Entente => "models/entente/tanks/mark1.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/tanks/a7v.glb#Scene0",
+            };
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(position)
+                        .with_scale(Vec3::splat(0.125)),
+                    ..default()
+                },
+                ShapeType::Cube,
+                crate::game::components::Selectable,
+                crate::game::components::Tank,
+                crate::game::components::Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 1.0,
+                    last_shot: 0.0,
+                    range: 10.0,
+                    damage: 10.0,
+                },
+                RigidBody::Dynamic,
+                Collider::cuboid(0.5, 0.5, 0.5),
+                LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+                Restitution::coefficient(0.0),
+                Friction::coefficient(0.8),
+                bevy_mod_picking::prelude::PickableBundle::default(),
+                Name::new("Player Tank"),
+            ));
+        },
+        ShapeType::Airplane => {
+            use crate::menu::main_menu::Faction;
+            let model_path = match player_faction.0 {
+                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+            };
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(position + Vec3::new(0.0, 10.0, 0.0))
+                        .with_scale(Vec3::splat(0.1)),
+                    ..default()
+                },
+                ShapeType::Airplane,
+                crate::game::components::Selectable,
+                crate::game::components::Aircraft {
+                    height: 10.0,
+                    speed: 5.0,
+                },
+                crate::game::components::Health {
+                    current: 75.0,
+                    max: 75.0,
+                },
+                crate::game::components::CanShoot {
+                    cooldown: 0.5,
+                    last_shot: 0.0,
+                    range: 20.0,
+                    damage: 15.0,
+                },
+                RigidBody::Fixed,
+                Collider::cuboid(1.0, 0.25, 2.0),
+                LockedAxes::all(),
+                bevy_mod_picking::prelude::PickableBundle::default(),
+                Name::new("Player Aircraft"),
+            ));
+        },
+        _ => {
+            info!("Placement for {:?} not implemented yet", shape_type);
         }
     }
 } 

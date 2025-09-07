@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use crate::game::{Ground, MainCamera, Enemy, Selectable, ShapeType, Health, HoveredOutline, CanShoot, Tower, EnemyTower};
-use crate::game::farm::{spawn_inactive_forest_farm};
+use crate::game::farm::{spawn_active_forest_farm};
 
 /// setup initial scene.
 pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let cube_mesh = meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)));
     let sphere_mesh = meshes.add(Mesh::from(Sphere::new(0.5)));
@@ -22,7 +23,6 @@ pub fn setup(
             ..default()
         },
         Enemy,
-        Selectable,
         PickableBundle::default(),
         ShapeType::Cube,
         Health { current: 80.0, max: 80.0 },
@@ -32,6 +32,10 @@ pub fn setup(
             range: 8.0,
             damage: 12.0,
         },
+        bevy_rapier3d::prelude::RigidBody::Fixed,
+        bevy_rapier3d::prelude::Collider::cuboid(1.0, 1.0, 1.0),
+        bevy_rapier3d::prelude::Sensor,
+        bevy_rapier3d::prelude::LockedAxes::all(),
         Name::new("EnemyCube"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
@@ -50,7 +54,6 @@ pub fn setup(
             ..default()
         },
         Enemy,
-        Selectable,
         PickableBundle::default(),
         ShapeType::Infantry,
         Health { current: 60.0, max: 60.0 },
@@ -60,6 +63,10 @@ pub fn setup(
             range: 12.0,
             damage: 8.0,
         },
+        bevy_rapier3d::prelude::RigidBody::Fixed,
+        bevy_rapier3d::prelude::Collider::ball(1.0),
+        bevy_rapier3d::prelude::Sensor,
+        bevy_rapier3d::prelude::LockedAxes::all(),
         Name::new("EnemyInfantry"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
@@ -78,13 +85,43 @@ pub fn setup(
     );
     
     // Forest Farm
-    info!("Creating initial inactive forest farm at position (-5.0, 0.0, -1.0)");
-    spawn_inactive_forest_farm(
+    spawn_active_forest_farm(
         &mut commands,
         &mut meshes,
         &mut materials,
         Vec3::new(-5.0, 0.0, -1.0),
+        &asset_server,
     );
+
+    // Test Enemy with multiple meshes (simulating 3D model behavior)
+    let test_enemy_parent = commands.spawn((
+        SpatialBundle {
+            transform: Transform::from_translation(Vec3::new(6.0, 0.0, 5.0)),
+            ..default()
+        },
+        Enemy,
+        PickableBundle::default(),
+        ShapeType::Cube,
+        Health { current: 100.0, max: 100.0 },
+        Name::new("Enemy3DModel"),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
+    )).with_children(|parent| {
+        // Child mesh that simulates a loaded 3D model mesh
+        parent.spawn((
+            PbrBundle {
+                mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
+                material: materials.add(Color::rgb(0.8, 0.1, 0.8)), // Purple to distinguish from other enemies
+                transform: Transform::from_translation(Vec3::ZERO),
+                ..default()
+            },
+            Name::new("Enemy3DModel_Mesh"),
+        ));
+    }).id();
 
     let plane_mesh = meshes.add(Plane3d::default().mesh().size(25.0, 25.0));
     commands.spawn((
@@ -132,11 +169,14 @@ pub fn spawn_tower(
             ..default()
         },
         Tower { height: 6.0 },
-        Selectable,
         PickableBundle::default(),
         ShapeType::Tower,
         EnemyTower,
         Health { current: 500.0, max: 500.0 },
+        bevy_rapier3d::prelude::RigidBody::Fixed,
+        bevy_rapier3d::prelude::Collider::cuboid(1.5, 3.5, 1.5),
+        bevy_rapier3d::prelude::Sensor,
+        bevy_rapier3d::prelude::LockedAxes::all(),
         Name::new("Tower"),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);

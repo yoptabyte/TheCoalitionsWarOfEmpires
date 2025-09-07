@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+use bevy_mod_picking::prelude::*;
 use crate::menu::main_menu::Faction;
 use super::{MilitaryUnit, PlayerFaction};
 use crate::game::components::{CanShoot, Health, ShapeType, Selectable, HoveredOutline, Aircraft as AircraftMarker};
@@ -200,6 +202,16 @@ pub fn spawn_aircraft(
         ShapeType::Airplane,
         Selectable,
         HoveredOutline,
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED,
+        Collider::cuboid(1.2, 0.3, 2.0),
+        PickableBundle::default(),
+        On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
+            commands.entity(event.target).insert(HoveredOutline);
+        }),
+        On::<Pointer<Out>>::run(|mut commands: Commands, event: Listener<Pointer<Out>>| {
+            commands.entity(event.target).remove::<HoveredOutline>();
+        }),
     )).id()
 }
 

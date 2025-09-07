@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy::gizmos::gizmos::Gizmos;
-use crate::game::components::{PetrochemicalPlant, FarmActive, FarmIncomeRate, OilProductionRate, Selectable, HoveredOutline, ShapeType};
+use bevy_rapier3d::prelude::*;
+use crate::game::components::{PetrochemicalPlant, FarmActive, FarmIncomeRate, OilProductionRate, Selectable, HoveredOutline, ShapeType, Health};
 use crate::game::resources::FarmIncomeTimer;
 use crate::ui::money_ui::{Money, Oil, Wood, Steel};
 
@@ -134,18 +135,16 @@ pub fn draw_petrochemical_plant_status(
 /// Create an inactive petrochemical plant that requires a click to activate
 pub fn spawn_inactive_petrochemical_plant(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.6, 0.1, 0.6),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/oil_pump.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.3)),
             ..default()
         },
         Name::new("PetrochemicalPlant"),
@@ -155,6 +154,11 @@ pub fn spawn_inactive_petrochemical_plant(
         FarmActive(false),
         FarmIncomeRate(0.0),
         OilProductionRate(0.0),
+        Health { current: 180.0, max: 180.0 },
+        PickableBundle::default(),
+        RigidBody::Fixed,
+        LockedAxes::all(),
+        Collider::cuboid(1.0, 0.5, 1.0),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -167,19 +171,16 @@ pub fn spawn_inactive_petrochemical_plant(
 /// Create an active petrochemical plant
 pub fn spawn_active_petrochemical_plant(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    _meshes: &mut Assets<Mesh>,
+    _materials: &mut Assets<StandardMaterial>,
     position: Vec3,
+    asset_server: &AssetServer,
 ) {
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 1.0, 2.0))),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.9, 0.1, 0.9),
-                emissive: Color::rgb(0.3, 0.0, 0.3),
-                ..default()
-            }),
-            transform: Transform::from_translation(position + Vec3::new(0.0, 0.5, 0.0)),
+        SceneBundle {
+            scene: asset_server.load("models/farm/oil_pump.glb#Scene0"),
+            transform: Transform::from_translation(position)
+                .with_scale(Vec3::splat(0.3)),
             ..default()
         },
         Name::new("ActivePetrochemicalPlant"),
@@ -189,6 +190,11 @@ pub fn spawn_active_petrochemical_plant(
         FarmActive(true),
         FarmIncomeRate(0.7),
         OilProductionRate(0.3),
+        Health { current: 180.0, max: 180.0 },
+        PickableBundle::default(),
+        RigidBody::Fixed,
+        LockedAxes::all(),
+        Collider::cuboid(1.0, 0.5, 1.0),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);
         }),
@@ -204,11 +210,21 @@ pub fn spawn_petrochemical_plant_on_keystroke(
     keys: Res<ButtonInput<KeyCode>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     mut money: ResMut<Money>,
     mut wood: ResMut<Wood>,
     mut steel: ResMut<Steel>,
+    // Добавляем запрос для проверки существующих нефтезаводов игрока
+    player_plants: Query<Entity, (With<PetrochemicalPlant>, Without<crate::game::Enemy>)>,
 ) {
     if keys.just_pressed(KeyCode::KeyP) {
+        // Проверяем, есть ли уже нефтезавод у игрока
+        let existing_plants_count = player_plants.iter().count();
+        if existing_plants_count >= 1 {
+            info!("Cannot build more petrochemical plants! Player can only have 1 petrochemical plant maximum.");
+            return;
+        }
+        
         // Check if player has enough resources (10 money, 5 wood, 5 steel)
         if money.0 >= 10.0 && wood.0 >= 5.0 && steel.0 >= 5.0 {
             info!("Spawning a petrochemical plant, cost: 10 money, 5 wood, 5 steel");
@@ -225,6 +241,7 @@ pub fn spawn_petrochemical_plant_on_keystroke(
                 &mut meshes,
                 &mut materials,
                 position,
+                &asset_server,
             );
         } else {
             info!("Not enough resources to spawn a petrochemical plant! Need 10 money, 5 wood and 5 steel");

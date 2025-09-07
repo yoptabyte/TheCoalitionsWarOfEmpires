@@ -14,7 +14,6 @@ pub struct NotificationState {
     pub mine_notified: bool,
     pub steel_factory_notified: bool,
     pub petrochemical_plant_notified: bool,
-    pub forest_notification_shown: bool,
 }
 
 // Component for blinking animations
@@ -49,9 +48,6 @@ pub struct HighlightedInfantryButton;
 #[derive(Component)]
 pub struct UnitTooltip;
 
-// Component for forest notification
-#[derive(Component)]
-pub struct ForestNotification;
 
 // Component for individual infantry unit buttons for hover detection
 #[derive(Component)]
@@ -234,137 +230,6 @@ pub fn handle_infantry_interaction(
     }
 }
 
-// System to spawn forest notification
-pub fn spawn_forest_notification(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    forest_query: Query<&Transform, With<ForestFarm>>,
-    farm_query: Query<&FarmActive, With<ForestFarm>>, 
-    notification_state: Res<NotificationState>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
-    existing_notifications: Query<Entity, With<ForestNotification>>,
-) {
-    // Only show notification if not already shown and forest exists but is not active
-    if notification_state.forest_notification_shown {
-        return;
-    }
-    
-    // Check if forest exists and is not active
-    if let Ok(forest_transform) = forest_query.get_single() {
-        let is_forest_active = if let Ok(farm_active) = farm_query.get_single() {
-            farm_active.0
-        } else {
-            false
-        };
-        
-        // Only show notification if forest is not active
-        if !is_forest_active {
-            // Remove existing forest notifications first
-            for entity in &existing_notifications {
-                commands.entity(entity).despawn_recursive();
-            }
-            
-            // Try to convert world position to screen position
-            if let Ok((camera, camera_transform)) = camera_query.get_single() {
-                if let Some(screen_pos) = camera.world_to_viewport(camera_transform, forest_transform.translation) {
-                    info!("Spawning forest notification at screen position: {:?} for world position: {:?}", screen_pos, forest_transform.translation);
-                    
-                    commands.spawn((
-                        NodeBundle {
-                            style: Style {
-                                position_type: PositionType::Absolute,
-                                left: Val::Px(screen_pos.x + 20.0),
-                                top: Val::Px(screen_pos.y - 80.0),
-                                width: Val::Px(200.0),
-                                height: Val::Px(80.0),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                padding: UiRect::all(Val::Px(8.0)),
-                                ..default()
-                            },
-                            background_color: Color::rgba(0.2, 0.6, 0.2, 0.9).into(),
-                            z_index: ZIndex::Global(1000),
-                            ..default()
-                        },
-                        ForestNotification,
-                        OnGameScreen,
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            TextBundle::from_section(
-                                "Forest\nClick to activate\n+2 wood/sec, +1 money/sec",
-                                TextStyle {
-                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                                    font_size: 12.0,
-                                    color: Color::WHITE,
-                                },
-                            ),
-                        ));
-                    });
-                } else {
-                    // Fallback: create notification in fixed position if viewport conversion fails
-                    info!("Viewport conversion failed, using fixed position for forest notification");
-                    commands.spawn((
-                        NodeBundle {
-                            style: Style {
-                                position_type: PositionType::Absolute,
-                                left: Val::Px(450.0), // Fixed position
-                                top: Val::Px(150.0),
-                                width: Val::Px(200.0),
-                                height: Val::Px(80.0),
-                                justify_content: JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                padding: UiRect::all(Val::Px(8.0)),
-                                ..default()
-                            },
-                            background_color: Color::rgba(0.2, 0.6, 0.2, 0.9).into(),
-                            z_index: ZIndex::Global(1000),
-                            ..default()
-                        },
-                        ForestNotification,
-                        OnGameScreen,
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            TextBundle::from_section(
-                                "Forest\nClick to activate\n+2 wood/sec, +1 money/sec",
-                                TextStyle {
-                                    font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                                    font_size: 12.0,
-                                    color: Color::WHITE,
-                                },
-                            ),
-                        ));
-                    });
-                }
-            }
-        } else {
-            info!("Forest is already active, not showing notification");
-        }
-    } else {
-        info!("No forest found in the scene");
-    }
-}
-
-// System to handle forest clicks and hide notification
-pub fn handle_forest_interaction(
-    farm_query: Query<&FarmActive, (With<ForestFarm>, Changed<FarmActive>)>,
-    mut notification_state: ResMut<NotificationState>,
-    mut commands: Commands,
-    notification_query: Query<Entity, With<ForestNotification>>,
-) {
-    // Check if any forest farm became active
-    for farm_active in farm_query.iter() {
-        if farm_active.0 {
-            info!("Forest activated, hiding notification");
-            notification_state.forest_notification_shown = true;
-            
-            // Remove forest notifications immediately
-            for entity in &notification_query {
-                commands.entity(entity).despawn_recursive();
-            }
-            break;
-        }
-    }
-}
 
 // Component to track current tooltip
 #[derive(Component)]
@@ -706,8 +571,6 @@ impl Plugin for NotificationSystemPlugin {
                 cleanup_notifications,
                 handle_infantry_interaction,
                 manage_unit_tooltips,
-                spawn_forest_notification,
-                handle_forest_interaction,
             ).run_if(in_state(crate::menu::common::GameState::Game)));
     }
 }

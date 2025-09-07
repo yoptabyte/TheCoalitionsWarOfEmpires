@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank};
-use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil, PurchasableItem};
+use bevy_mod_picking::prelude::*;
+use crate::menu::main_menu::Faction;
+use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank, Mine, SteelFactory, PetrochemicalPlant};
+use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil, AIMoney, AIWood, AIIron, AISteel, AIOil, PurchasableItem, can_afford_item_ai, deduct_resources_ai};
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
 #[derive(Resource, Debug)]
@@ -76,57 +78,86 @@ impl AIStrategy {
     }
 }
 
-/// Система покупок ИИ - работает только в ход ИИ
+/// Упрощенная система покупок ИИ - только базовый функционал
 pub fn ai_purchase_system(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     turn_state: Res<TurnState>,
-    mut ai_behavior: ResMut<AIBehavior>,
-    mut money: ResMut<Money>,
-    mut wood: ResMut<Wood>,
-    mut iron: ResMut<Iron>,
-    mut steel: ResMut<Steel>,
-    mut oil: ResMut<Oil>,
+    mut ai_money: ResMut<AIMoney>,
+    mut ai_wood: ResMut<AIWood>,
+    mut ai_iron: ResMut<AIIron>,
+    mut ai_steel: ResMut<AISteel>,
+    mut ai_oil: ResMut<AIOil>,
     time: Res<Time>,
-    // Запросы для анализа текущего состояния
-    player_units: Query<&Transform, (With<crate::game::Tank>, Without<Enemy>)>,
-    ai_units: Query<&Transform, (With<crate::game::Tank>, With<Enemy>)>,
-    _ai_buildings: Query<&ShapeType, With<Enemy>>,
+    ai_faction: Res<crate::game::units::AIFaction>,
+    // Компактные запросы для подсчета
+    ai_tanks: Query<(), (With<crate::game::Tank>, With<Enemy>)>,
+    ai_infantry: Query<(), (With<crate::game::ShapeType>, With<Enemy>)>,
+    ai_aircraft: Query<(), (With<crate::game::Aircraft>, With<Enemy>)>,
+    ai_mines: Query<(), (With<crate::game::Mine>, With<Enemy>)>,
+    ai_steel_factories: Query<(), (With<crate::game::SteelFactory>, With<Enemy>)>,
+    ai_petrochemical_plants: Query<(), (With<crate::game::PetrochemicalPlant>, With<Enemy>)>,
 ) {
-    // ИИ покупает только в свой ход
+    // ИИ покупает только в ход ИИ
     if turn_state.current_player != PlayerTurn::AI {
         return;
     }
 
-    // ИИ принимает решения не каждый кадр, а раз в секунду
-    if time.elapsed_seconds() - ai_behavior.last_decision_time < 1.0 {
-        return;
+    // Простой таймер - раз в 3 секунды
+    static mut LAST_PURCHASE_TIME: f32 = 0.0;
+    let current_time = time.elapsed_seconds();
+    
+    unsafe {
+        if current_time - LAST_PURCHASE_TIME < 3.0 {
+            return;
+        }
+        LAST_PURCHASE_TIME = current_time;
     }
     
-    ai_behavior.last_decision_time = time.elapsed_seconds();
-
-    let weights = ai_behavior.strategy.get_weights();
+    // Подсчет юнитов с лимитами
+    let ai_tank_count = ai_tanks.iter().count();
+    let ai_infantry_count = ai_infantry.iter().count();
+    let ai_aircraft_count = ai_aircraft.iter().count();
     
-    // Анализ ситуации
-    let player_unit_count = player_units.iter().count();
-    let ai_unit_count = ai_units.iter().count();
-    let unit_ratio = if ai_unit_count > 0 { 
-        player_unit_count as f32 / ai_unit_count as f32 
-    } else { 
-        10.0 // Если у ИИ нет юнитов, срочно нужно покупать
-    };
+    // Проверяем лимиты для каждого типа юнитов
+    let tank_limit_reached = ai_tank_count >= 3;
+    let infantry_limit_reached = ai_infantry_count >= 3;
+    let aircraft_limit_reached = ai_aircraft_count >= 3;
+    
 
-    // Определяем приоритеты покупок
-    let mut purchase_priorities = vec![
-        (PurchasableItem::Infantry, weights.aggression * unit_ratio),
-        (PurchasableItem::Tank, weights.aggression * 0.8),
-        (PurchasableItem::Airplane, weights.aggression * 0.6),
-        (PurchasableItem::Mine, weights.economy * 2.0),
-        (PurchasableItem::SteelFactory, weights.economy * 1.5),
-        (PurchasableItem::PetrochemicalPlant, weights.economy * 1.2),
-        (PurchasableItem::Trench, weights.defense * 1.0),
-    ];
+    // Подсчет зданий ИИ с лимитами
+    let ai_mine_count = ai_mines.iter().count();
+    let ai_steel_factory_count = ai_steel_factories.iter().count();
+    let ai_petrochemical_plant_count = ai_petrochemical_plants.iter().count();
+    
+    let mine_limit_reached = ai_mine_count >= 1;
+    let steel_factory_limit_reached = ai_steel_factory_count >= 1;
+    let petrochemical_plant_limit_reached = ai_petrochemical_plant_count >= 1;
+
+    // Определяем приоритеты покупок с учетом лимитов
+    let mut purchase_priorities = vec![];
+    
+    // ЗДАНИЯ ИМЕЮТ ВЫСШИЙ ПРИОРИТЕТ (только если не достигнут лимит и можем позволить)
+    if !mine_limit_reached && can_afford_item_ai(PurchasableItem::Mine, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::Mine, 10.0));
+    }
+    if !steel_factory_limit_reached && can_afford_item_ai(PurchasableItem::SteelFactory, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::SteelFactory, 9.0));
+    }
+    if !petrochemical_plant_limit_reached && can_afford_item_ai(PurchasableItem::PetrochemicalPlant, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::PetrochemicalPlant, 8.0));
+    }
+    
+    // Добавляем юниты только если не достигнут лимит и можем позволить
+    if !infantry_limit_reached && can_afford_item_ai(PurchasableItem::Infantry, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::Infantry, 3.0));
+    }
+    if !tank_limit_reached && can_afford_item_ai(PurchasableItem::Tank, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::Tank, 2.0));
+    }
+    if !aircraft_limit_reached && can_afford_item_ai(PurchasableItem::Airplane, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::Airplane, 1.0));
+    }
 
     // Сортируем по приоритету
     purchase_priorities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -137,70 +168,34 @@ pub fn ai_purchase_system(
             break; // Слишком низкий приоритет
         }
 
-        if can_afford(*item, &money, &wood, &iron, &steel, &oil) {
-            make_purchase(
-                *item,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut money,
-                &mut wood,
-                &mut iron,
-                &mut steel,
-                &mut oil,
-                &time,
-            );
+        if can_afford_item_ai(*item, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+            // Списываем все ресурсы
+            deduct_resources_ai(*item, &mut ai_money, &mut ai_wood, &mut ai_iron, &mut ai_steel, &mut ai_oil);
             
-            info!("AI purchased {:?} with priority {:.2}", item, priority);
+            // Создаем юнит
+            simple_spawn_ai_unit(*item, &mut commands, &asset_server, &time, &ai_faction);
+            
+            info!("AI purchased {:?} with priority {:.2}. Counts: Infantry {}/3, Tanks {}/3, Aircraft {}/3, Mines {}/1, Factories {}/1, Plants {}/1", 
+                  item, priority, 
+                  ai_infantry_count + if *item == PurchasableItem::Infantry { 1 } else { 0 },
+                  ai_tank_count + if *item == PurchasableItem::Tank { 1 } else { 0 },
+                  ai_aircraft_count + if *item == PurchasableItem::Airplane { 1 } else { 0 },
+                  ai_mine_count + if *item == PurchasableItem::Mine { 1 } else { 0 },
+                  ai_steel_factory_count + if *item == PurchasableItem::SteelFactory { 1 } else { 0 },
+                  ai_petrochemical_plant_count + if *item == PurchasableItem::PetrochemicalPlant { 1 } else { 0 });
             break; // Покупаем только один предмет за раз
         }
     }
+
 }
 
-fn can_afford(
-    item: PurchasableItem,
-    money: &Money,
-    wood: &Wood,
-    iron: &Iron,
-    steel: &Steel,
-    oil: &Oil,
-) -> bool {
-    money.0 >= item.cost() 
-        && wood.0 >= item.wood_cost()
-        && iron.0 >= item.iron_cost()
-        && steel.0 >= item.steel_cost()
-        && oil.0 >= item.oil_cost()
-}
-
-fn make_purchase(
+/// Простая функция создания юнитов ИИ
+fn simple_spawn_ai_unit(
     item: PurchasableItem,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    money: &mut ResMut<Money>,
-    wood: &mut ResMut<Wood>,
-    iron: &mut ResMut<Iron>,
-    steel: &mut ResMut<Steel>,
-    oil: &mut ResMut<Oil>,
+    asset_server: &AssetServer,
     time: &Res<Time>,
-) {
-    // Списываем ресурсы
-    money.0 -= item.cost();
-    wood.0 -= item.wood_cost();
-    iron.0 -= item.iron_cost();
-    steel.0 -= item.steel_cost();
-    oil.0 -= item.oil_cost();
-
-    // Создаем объект
-    spawn_ai_unit(item, commands, meshes, materials, time);
-}
-
-fn spawn_ai_unit(
-    item: PurchasableItem,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    time: &Res<Time>,
+    ai_faction: &Res<crate::game::units::AIFaction>,
 ) {
     // Определяем позицию для спавна (правая сторона карты для ИИ)
     let seed = time.elapsed_seconds_f64().fract() as f32;
@@ -210,14 +205,207 @@ fn spawn_ai_unit(
 
     match item {
         PurchasableItem::Tank => {
+            let faction = ai_faction.get_opposite();
+            let model_path = match faction {
+                Faction::Entente => "models/entente/tanks/mark1.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/tanks/a7v.glb#Scene0",
+            };
+            let tank_entity = commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.042)),
+                    ..default()
+                },
+                ShapeType::Cube,
+                Enemy,
+                Tank,
+                Health { current: 100.0, max: 100.0 },
+                CanShoot {
+                    cooldown: 1.2,
+                    last_shot: time.elapsed_seconds(),
+                    range: 10.0,
+                    damage: 12.0,
+                },
+                RigidBody::Dynamic,
+                Collider::cuboid(0.5, 0.5, 0.5),
+                LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+                Restitution::coefficient(0.0),
+                Friction::coefficient(0.8),
+                PickableBundle::default(),
+                Name::new("AI Tank"),
+            )).id();
+
+            // Добавляем видимый клик-коллайдер для отладки - пока отложим
+        }
+        PurchasableItem::Infantry => {
             commands.spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(0.8, 0.2, 0.2), // Красный для врагов
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.5, 0.0)),
+                SceneBundle {
+                    scene: asset_server.load("models/infantry/german_soldier.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.8)),
+                    ..default()
+                },
+                ShapeType::Infantry,
+                Enemy,
+                Health { current: 60.0, max: 60.0 },
+                CanShoot {
+                    cooldown: 0.9,
+                    last_shot: time.elapsed_seconds(),
+                    range: 12.0,
+                    damage: 8.0,
+                },
+                RigidBody::Dynamic,
+                Collider::ball(0.5),
+                LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
+                Restitution::coefficient(0.0),
+                Friction::coefficient(0.8),
+                PickableBundle::default(),
+                Name::new("AI Infantry"),
+            ));
+        }
+        PurchasableItem::Airplane => {
+            let faction = ai_faction.get_opposite();
+            let model_path = match faction {
+                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+            };
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 10.0, 0.0))
+                        .with_scale(Vec3::splat(0.1)),
+                    ..default()
+                },
+                ShapeType::Airplane,
+                Enemy,
+                crate::game::Aircraft { height: 10.0, speed: 5.0 },
+                Health { current: 75.0, max: 75.0 },
+                CanShoot {
+                    cooldown: 0.6,
+                    last_shot: time.elapsed_seconds(),
+                    range: 20.0,
+                    damage: 15.0,
+                },
+                RigidBody::Fixed,
+                Collider::cuboid(1.0, 0.25, 2.0),
+                LockedAxes::all(),
+                PickableBundle::default(),
+                Name::new("AI Aircraft"),
+            ));
+        }
+        PurchasableItem::Mine => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/mine.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::Mine,
+                crate::game::MineIronRate(2.0),
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 100.0, max: 100.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Mine - FIXED"),
+            ));
+        }
+        PurchasableItem::SteelFactory => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/factory.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.25)),
+                    ..default()
+                },
+                crate::game::SteelFactory,
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 120.0, max: 120.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Steel Factory - FIXED"),
+            ));
+        }
+        PurchasableItem::PetrochemicalPlant => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/oil_pump.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::PetrochemicalPlant,
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 110.0, max: 110.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Petrochemical Plant - FIXED"),
+            ));
+        }
+        _ => {
+            info!("AI tried to build unsupported item: {:?}", item);
+        }
+    }
+}
+
+fn make_purchase_ai(
+    item: PurchasableItem,
+    commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
+    ai_money: &mut ResMut<AIMoney>,
+    ai_wood: &mut ResMut<AIWood>,
+    ai_iron: &mut ResMut<AIIron>,
+    ai_steel: &mut ResMut<AISteel>,
+    ai_oil: &mut ResMut<AIOil>,
+    time: &Res<Time>,
+    asset_server: &Res<AssetServer>,
+    ai_faction: &Res<crate::game::units::AIFaction>,
+) {
+    // Списываем ресурсы ИИ
+    deduct_resources_ai(item, ai_money, ai_wood, ai_iron, ai_steel, ai_oil);
+
+    // Создаем объект
+    spawn_ai_unit(item, commands, _meshes, _materials, time, asset_server, ai_faction);
+}
+
+fn spawn_ai_unit(
+    item: PurchasableItem,
+    commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
+    time: &Res<Time>,
+    asset_server: &Res<AssetServer>,
+    ai_faction: &Res<crate::game::units::AIFaction>,
+) {
+    // Определяем позицию для спавна (правая сторона карты для ИИ)
+    let seed = time.elapsed_seconds_f64().fract() as f32;
+    let x = 15.0 + (seed * 50.0).sin() * 5.0;
+    let z = (seed * 75.0).cos() * 8.0;
+    let spawn_pos = Vec3::new(x, 0.0, z);
+
+    match item {
+        PurchasableItem::Tank => {
+            let faction = ai_faction.get_opposite();
+            let model_path = match faction {
+                Faction::Entente => "models/entente/tanks/mark1.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/tanks/a7v.glb#Scene0",
+            };
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.0, 0.0))
+                        .with_scale(Vec3::splat(0.042)),
                     ..default()
                 },
                 ShapeType::Cube,
@@ -235,18 +423,16 @@ fn spawn_ai_unit(
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
                 Restitution::coefficient(0.0), // Без отскока
                 Friction::coefficient(0.8), // Трение
+                PickableBundle::default(),
                 Name::new("AI Tank"),
             ));
         }
         PurchasableItem::Infantry => {
             commands.spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Sphere::new(0.5))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(0.7, 0.1, 0.1),
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.5, 0.0)),
+                SceneBundle {
+                    scene: asset_server.load("models/infantry/german_soldier.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 0.0, 0.0))
+                        .with_scale(Vec3::splat(0.8)),
                     ..default()
                 },
                 ShapeType::Infantry,
@@ -263,18 +449,21 @@ fn spawn_ai_unit(
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
                 Restitution::coefficient(0.0), // Без отскока
                 Friction::coefficient(0.8), // Трение
+                PickableBundle::default(),
                 Name::new("AI Infantry"),
             ));
         }
         PurchasableItem::Airplane => {
+            let faction = ai_faction.get_opposite();
+            let model_path = match faction {
+                Faction::Entente => "models/entente/airplanes/sopwith_camel.glb#Scene0",
+                Faction::CentralPowers => "models/central_powers/airplanes/red_baron.glb#Scene0",
+            };
             commands.spawn((
-                PbrBundle {
-                    mesh: meshes.add(Mesh::from(Cuboid::new(2.0, 0.5, 4.0))),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::rgb(0.6, 0.1, 0.1),
-                        ..default()
-                    }),
-                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 10.0, 0.0)),
+                SceneBundle {
+                    scene: asset_server.load(model_path),
+                    transform: Transform::from_translation(spawn_pos + Vec3::new(0.0, 10.0, 0.0))
+                        .with_scale(Vec3::splat(0.1)),
                     ..default()
                 },
                 ShapeType::Airplane,
@@ -287,17 +476,74 @@ fn spawn_ai_unit(
                     range: 20.0,
                     damage: 15.0,
                 },
-                RigidBody::Dynamic,
-                Collider::cuboid(1.0, 0.25, 2.0), // Коллайдер самолета ИИ
-                LockedAxes::ROTATION_LOCKED, // Заблокируем только вращение, самолеты могут двигаться по Y
-                Restitution::coefficient(0.0), // Без отскока
-                Friction::coefficient(0.0), // Без трения в воздухе
+                RigidBody::Fixed, // Самолеты теперь фиксированы в воздухе
+                Collider::cuboid(1.0, 0.25, 2.0), // Коллайдер самолета ИИ для детекции попаданий
+                LockedAxes::all(), // Блокируем все движения
+                PickableBundle::default(),
                 Name::new("AI Aircraft"),
             ));
         }
-        // Для зданий пока просто логируем
+        PurchasableItem::Mine => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/mine.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::Mine,
+                crate::game::MineIronRate(2.0),
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 100.0, max: 100.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Mine - FIXED"),
+            ));
+        }
+        PurchasableItem::SteelFactory => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/factory.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.25)),
+                    ..default()
+                },
+                crate::game::SteelFactory,
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 120.0, max: 120.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Steel Factory - FIXED"),
+            ));
+        }
+        PurchasableItem::PetrochemicalPlant => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/oil_pump.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::PetrochemicalPlant,
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 110.0, max: 110.0 },
+                RigidBody::Fixed,
+        LockedAxes::all(),
+                Collider::cuboid(1.0, 0.5, 1.0),
+                PickableBundle::default(),
+                Name::new("AI Petrochemical Plant - FIXED"),
+            ));
+        }
+        // Другие предметы не обрабатываем
         _ => {
-            info!("AI would build {:?} at {:?}", item, spawn_pos);
+            info!("AI tried to build unsupported item: {:?}", item);
         }
     }
 }
@@ -308,10 +554,10 @@ pub fn ai_movement_system(
     turn_state: Res<TurnState>,
     time: Res<Time>,
     // ИИ юниты
-    mut ai_units: Query<(Entity, &mut Transform, Option<&MovementOrder>), (With<Enemy>, Without<crate::game::Tank>)>,
+    mut ai_units: Query<(Entity, &mut Transform, Option<&MovementOrder>), (With<Enemy>, Without<crate::game::Tank>, Without<crate::game::ForestFarm>, Without<crate::game::Mine>, Without<crate::game::SteelFactory>, Without<crate::game::PetrochemicalPlant>)>,
     mut ai_tanks: Query<(Entity, &mut Transform, Option<&MovementOrder>), (With<Enemy>, With<Tank>)>,
     // Цели для атаки (все юниты игрока кроме зданий)
-    player_units: Query<&Transform, (With<Health>, Without<Enemy>, Without<crate::game::components::Farm>, Without<crate::game::components::Mine>, Without<crate::game::components::SteelFactory>, Without<crate::game::components::PetrochemicalPlant>)>,
+    player_units: Query<&Transform, (With<Health>, Without<Enemy>)>, // Ищем ВСЕ цели игрока включая здания
 ) {
     // ИИ действует только в свой ход
     if turn_state.current_player != PlayerTurn::AI {
@@ -381,12 +627,12 @@ pub fn ai_movement_system(
     }
 }
 
-/// Система атак ИИ
+/// Система атак ИИ - с разносом по времени
 pub fn ai_combat_system(
     turn_state: Res<TurnState>,
     time: Res<Time>,
-    mut ai_units: Query<(&Transform, &mut CanShoot), With<Enemy>>,
-    mut player_units: Query<(Entity, &Transform, &mut Health), (Without<Enemy>, Without<crate::game::components::Farm>, Without<crate::game::components::Mine>, Without<crate::game::components::SteelFactory>, Without<crate::game::components::PetrochemicalPlant>)>,
+    mut ai_units: Query<(Entity, &Transform, &mut CanShoot), (With<Enemy>, Without<crate::game::ForestFarm>, Without<crate::game::Mine>, Without<crate::game::SteelFactory>, Without<crate::game::PetrochemicalPlant>)>,
+    mut player_units: Query<(Entity, &Transform, &mut Health), Without<Enemy>>, // Атакуем ВСЕ цели игрока включая здания
     mut commands: Commands,
 ) {
     // ИИ атакует только в свой ход
@@ -396,9 +642,13 @@ pub fn ai_combat_system(
     
     let current_time = time.elapsed_seconds();
     
-    for (ai_transform, mut can_shoot) in ai_units.iter_mut() {
-        // Проверяем кулдаун
-        if current_time - can_shoot.last_shot < can_shoot.cooldown {
+    for (ai_entity, ai_transform, mut can_shoot) in ai_units.iter_mut() {
+        // Создаем уникальную задержку для каждого юнита на основе их ID
+        let unit_specific_delay = (ai_entity.index() as f32 * 0.3) % 1.5; // Разброс от 0 до 1.5 секунд
+        let adjusted_cooldown = can_shoot.cooldown + unit_specific_delay;
+        
+        // Проверяем кулдаун с индивидуальной задержкой
+        if current_time - can_shoot.last_shot < adjusted_cooldown {
             continue;
         }
         
@@ -415,7 +665,9 @@ pub fn ai_combat_system(
                 
                 // Если цель уничтожена
                 if target_health.current <= 0.0 {
-                    commands.entity(target_entity).despawn();
+                    if let Some(entity_commands) = commands.get_entity(target_entity) {
+                        entity_commands.despawn_recursive();
+                    }
                     info!("Player unit destroyed by AI!");
                 }
                 
@@ -425,7 +677,7 @@ pub fn ai_combat_system(
     }
 }
 
-fn find_nearest_target(pos: &Vec3, targets: &Query<&Transform, (With<Health>, Without<Enemy>, Without<crate::game::components::Farm>, Without<crate::game::components::Mine>, Without<crate::game::components::SteelFactory>, Without<crate::game::components::PetrochemicalPlant>)>) -> Option<Vec3> {
+fn find_nearest_target(pos: &Vec3, targets: &Query<&Transform, (With<Health>, Without<Enemy>)>) -> Option<Vec3> {
     let mut nearest_pos = None;
     let mut nearest_distance = f32::INFINITY;
     
@@ -438,4 +690,55 @@ fn find_nearest_target(pos: &Vec3, targets: &Query<&Transform, (With<Health>, Wi
     }
     
     nearest_pos
+}
+
+fn spawn_ai_farm(
+    commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
+    asset_server: &Res<AssetServer>,
+    existing_farms: &Query<&Transform, (With<crate::game::ForestFarm>, With<Enemy>)>,
+    time: &Res<Time>,
+) {
+    // Генерируем позицию с достаточным расстоянием от существующих ферм
+    let mut attempts = 0;
+    let farm_position = loop {
+        let seed = time.elapsed_seconds_f64().fract() as f32 + attempts as f32 * 0.1;
+        let x = 15.0 + (seed * 30.0).sin() * 8.0; // От 7 до 23
+        let z = (seed * 45.0).cos() * 10.0; // От -10 до 10
+        let candidate_pos = Vec3::new(x, 0.0, z);
+        
+        // Проверяем минимальное расстояние до существующих ферм (6 единиц)
+        let mut too_close = false;
+        for existing_transform in existing_farms.iter() {
+            if existing_transform.translation.distance(candidate_pos) < 6.0 {
+                too_close = true;
+                break;
+            }
+        }
+        
+        if !too_close || attempts > 10 {
+            break candidate_pos;
+        }
+        attempts += 1;
+    };
+    
+    commands.spawn((
+        SceneBundle {
+            scene: asset_server.load("models/farm/forest.glb#Scene0"),
+            transform: Transform::from_translation(farm_position)
+                .with_scale(Vec3::splat(0.2)),
+            ..default()
+        },
+        crate::game::ForestFarm,
+        crate::game::FarmActive(true), 
+        crate::game::Enemy,
+        RigidBody::Fixed,
+        LockedAxes::all(),
+        Collider::cuboid(1.0, 0.5, 1.0),
+        PickableBundle::default(),
+        Name::new("AI Farm - WITH HP"),
+    ));
+    
+    info!("AI farm spawned as ACTIVE at position: {:?}", farm_position);
 }

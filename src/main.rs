@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
-use bevy_mod_picking::picking_core::PickSet;
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_rapier3d::prelude::*;
+use std::time::Duration;
 
 mod game;
 mod input;
@@ -13,7 +13,7 @@ mod ui;
 mod utils;
 
 use game::*;
-use input::selection::ProcessedClicks;
+use input::selection::{ProcessedClicks, handle_enemy_clicks};
 use input::*;
 use menu::common::{DisplayQuality, GameState, Volume};
 use systems::*;
@@ -26,12 +26,28 @@ use utils::*;
 #[derive(Component)]
 struct UICamera;
 
+#[derive(Resource)]
+struct FpsLimiter {
+    last_frame_time: std::time::Instant,
+    target_frame_duration: std::time::Duration,
+}
+
+impl Default for FpsLimiter {
+    fn default() -> Self {
+        Self {
+            last_frame_time: std::time::Instant::now(),
+            target_frame_duration: std::time::Duration::from_millis(33), // 30 FPS
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "The Coalitions War of Empires".to_string(),
                 resolution: (1024.0, 768.0).into(),
+                present_mode: bevy::window::PresentMode::Immediate, // Disable VSync for custom FPS limit
                 ..default()
             }),
             ..default()
@@ -51,10 +67,18 @@ fn main() {
         .init_resource::<CameraMovementState>()
         .init_resource::<ProcessedClicks>()
         .init_resource::<systems::AIBehavior>()
+        .init_resource::<systems::TurnState>()
+        .init_resource::<FpsLimiter>()
+        .init_resource::<ui::money_ui::AIMoney>()
+        .init_resource::<ui::money_ui::AIWood>()
+        .init_resource::<ui::money_ui::AIIron>()
+        .init_resource::<ui::money_ui::AISteel>()
+        .init_resource::<ui::money_ui::AIOil>()
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
         .add_systems(Startup, (setup_ui_camera, setup_particle_effect))
+        .add_systems(Update, fps_limiter_system)
         .add_systems(
             Update,
             clear_processed_clicks.run_if(in_state(GameState::Game)),
@@ -74,7 +98,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            select_entity_system.run_if(in_state(GameState::Game)),
+            (select_entity_system, handle_enemy_clicks).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,
@@ -87,6 +111,15 @@ fn main() {
         .add_systems(
             Update,
             handle_attacks.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            (
+                game::scene_colliders::add_enemy_scene_colliders,
+                game::scene_colliders::add_enemy_deep_scene_colliders,
+                game::scene_colliders::handle_child_clicks,
+                game::scene_colliders::handle_child_hover,
+            ).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,
@@ -108,14 +141,26 @@ fn main() {
         )
         .add_systems(
             Update,
+            systems::turn_system::update_turn_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            systems::ai_economy::ai_resource_generation_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
+            systems::ai_opponent::ai_purchase_system.run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
             (
-                // Turn-based systems
-                systems::turn_system::update_turn_system,
-                systems::ai_opponent::ai_purchase_system,
                 systems::ai_opponent::ai_movement_system,
                 systems::ai_opponent::ai_combat_system,
-            )
-                .run_if(in_state(GameState::Game)),
+            ).run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            OnEnter(GameState::Game),
+            systems::ai_economy::ai_initial_resources_system,
         )
         .add_systems(OnExit(GameState::Game), reset_placement_state)
         .add_plugins((
@@ -147,6 +192,18 @@ fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
     placement_state.shape_type = None;
 }
 
+fn fps_limiter_system(mut fps_limiter: ResMut<FpsLimiter>) {
+    let now = std::time::Instant::now();
+    let elapsed = now.duration_since(fps_limiter.last_frame_time);
+    
+    if elapsed < fps_limiter.target_frame_duration {
+        let sleep_time = fps_limiter.target_frame_duration - elapsed;
+        std::thread::sleep(sleep_time);
+    }
+    
+    fps_limiter.last_frame_time = std::time::Instant::now();
+}
+
 pub mod game_plugin {
     use crate::{
         menu::common::{despawn_screen, GameState},
@@ -174,8 +231,9 @@ pub mod game_plugin {
         commands: Commands,
         meshes: ResMut<Assets<Mesh>>,
         materials: ResMut<Assets<StandardMaterial>>,
+        asset_server: Res<AssetServer>,
     ) {
-        crate::game::setup::setup(commands, meshes, materials);
+        crate::game::setup::setup(commands, meshes, materials, asset_server);
     }
 
     fn game_system() {

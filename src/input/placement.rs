@@ -53,7 +53,9 @@ pub fn handle_placement_clicks(
     mut click_circle: ResMut<ClickCircle>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
+    player_faction: Res<crate::game::units::PlayerFaction>,
 ) {
     // First handle the case when there is a pending purchase (PendingPurchase)
     if pending_purchase.shape_type.is_some() {
@@ -92,7 +94,9 @@ pub fn handle_placement_clicks(
                     shape_type.clone(), 
                     target_position, 
                     &mut meshes, 
-                    &mut materials
+                    &mut materials,
+                    &asset_server,
+                    &player_faction,
                 );
                 
                 // Update click circle display information
