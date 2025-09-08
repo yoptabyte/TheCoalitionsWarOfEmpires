@@ -5,6 +5,7 @@ use bevy_hanabi::ParticleEffect;
 use bevy_rapier3d::prelude::*;
 
 use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy, Tank, Aircraft};
+use crate::game::scene_colliders::ChildOfClickable;
 use crate::game::units::infantry::Infantry;
 use crate::systems::turn_system::{TurnState, PlayerTurn};
 
@@ -106,6 +107,7 @@ pub fn select_entity_system(
     turn_state: Res<TurnState>,
     // Add queries to debug what components entities actually have
     debug_query: Query<(Option<&Selectable>, Option<&Enemy>, Option<&Tank>, Option<&Infantry>, Option<&Aircraft>)>,
+    child_query: Query<&ChildOfClickable>,
 ) {
     // Блокируем все клики во время хода ИИ
     if turn_state.current_player != PlayerTurn::Human {
@@ -127,26 +129,35 @@ pub fn select_entity_system(
             continue;
         }
         
-        // Debug: Check what components this entity has
-        if let Ok((selectable, enemy, tank, infantry, aircraft)) = debug_query.get(event.target) {
-            info!("🔥 CLICK DEBUG: Entity {:?} has - Selectable: {:?}, Enemy: {:?}, Tank: {:?}, Infantry: {:?}, Aircraft: {:?}", 
-                  event.target, selectable.is_some(), enemy.is_some(), tank.is_some(), infantry.is_some(), aircraft.is_some());
-        } else {
-            info!("🔥 CLICK DEBUG: Entity {:?} - could not query components", event.target);
+        // Обрабатываем клики по дочерним элементам 3D моделей
+        let mut target_entity = event.target;
+        
+        // Проверяем, является ли кликнутый элемент дочерним элементом
+        if let Ok(child_of_clickable) = child_query.get(event.target) {
+            info!("🔥 CHILD CLICK: Redirecting from child {:?} to parent {:?}", event.target, child_of_clickable.parent);
+            target_entity = child_of_clickable.parent;
         }
         
-        let is_selectable = query_selectable.get(event.target).is_ok();
-        let is_attackable = query_attackable.get(event.target).is_ok();
-        let is_enemy_targetable = query_enemy_targetable.get(event.target).is_ok();
+        // Debug: Check what components this entity has
+        if let Ok((selectable, enemy, tank, infantry, aircraft)) = debug_query.get(target_entity) {
+            info!("🔥 CLICK DEBUG: Entity {:?} has - Selectable: {:?}, Enemy: {:?}, Tank: {:?}, Infantry: {:?}, Aircraft: {:?}", 
+                  target_entity, selectable.is_some(), enemy.is_some(), tank.is_some(), infantry.is_some(), aircraft.is_some());
+        } else {
+            info!("🔥 CLICK DEBUG: Entity {:?} - could not query components", target_entity);
+        }
         
-        info!("select_entity_system: Click on entity {:?}, is_selectable: {}, is_attackable: {}, is_enemy_targetable: {}", 
-              event.target, is_selectable, is_attackable, is_enemy_targetable);
+        let is_selectable = query_selectable.get(target_entity).is_ok();
+        let is_attackable = query_attackable.get(target_entity).is_ok();
+        let is_enemy_targetable = query_enemy_targetable.get(target_entity).is_ok();
+        
+        info!("select_entity_system: Click on entity {:?} (original: {:?}), is_selectable: {}, is_attackable: {}, is_enemy_targetable: {}", 
+              target_entity, event.target, is_selectable, is_attackable, is_enemy_targetable);
         
         if is_selectable {
-            info!("select_entity_system: ✅ Clicked on selectable object {:?}, previously selected: {:?}", event.target, selected_entity.0);
+            info!("select_entity_system: ✅ Clicked on selectable object {:?}, previously selected: {:?}", target_entity, selected_entity.0);
             
-            if selected_entity.0 != Some(event.target) {
-                selected_entity.0 = Some(event.target);
+            if selected_entity.0 != Some(target_entity) {
+                selected_entity.0 = Some(target_entity);
                 camera_movement_state.manual_camera_mode = false;
             }
             
@@ -155,7 +166,7 @@ pub fn select_entity_system(
         
         // Allow targeting enemy units/buildings for combat
         if (is_attackable || is_enemy_targetable) && selected_entity.0.is_some() {
-            info!("select_entity_system: Clicked on enemy target {:?}, keeping selected: {:?}", event.target, selected_entity.0);
+            info!("select_entity_system: Clicked on enemy target {:?}, keeping selected: {:?}", target_entity, selected_entity.0);
             // Don't return here - let combat system handle the attack!
         }
     }

@@ -1,7 +1,9 @@
-pub mod gizmos;
-pub use gizmos::*;
+pub mod health_bars;
 
 pub mod menu;
+
+pub use menu::*;
+pub use health_bars::*;
 
 pub mod splash;
 
@@ -14,6 +16,8 @@ pub mod purchase_menu;
 pub mod notification_system;
 
 pub mod turn_ui;
+
+pub mod enemy_highlighting;
 
 use bevy::prelude::*;
 use crate::menu::common::GameState;
@@ -89,6 +93,9 @@ pub fn ui_plugin(app: &mut App) {
             show_placement_state,
             confirm_dialog::confirm_dialog_button_system,
             confirm_dialog::handle_confirm_dialog_actions,
+            // Системы выделения врагов и игроков
+            enemy_highlighting::highlight_enemy_entities,
+            enemy_highlighting::highlight_player_entities,
         ).run_if(in_state(GameState::Game))
     );
 }

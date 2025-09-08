@@ -50,7 +50,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             update_farm_visuals.run_if(in_state(GameState::Game)),
         )
-        .add_systems(Update, draw_farm_status.run_if(in_state(GameState::Game)))
+
         .add_systems(
             Update,
             spawn_forest_farm_on_keystroke.run_if(in_state(GameState::Game)),
@@ -62,7 +62,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             update_mine_visuals.run_if(in_state(GameState::Game)),
         )
-        .add_systems(Update, draw_mine_status.run_if(in_state(GameState::Game)))
+
         .add_systems(
             Update,
             spawn_mine_on_keystroke.run_if(in_state(GameState::Game)),
@@ -80,10 +80,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             update_steel_factory_visuals.run_if(in_state(GameState::Game)),
         )
-        .add_systems(
-            Update,
-            draw_steel_factory_status.run_if(in_state(GameState::Game)),
-        )
+
         .add_systems(
             Update,
             spawn_steel_factory_on_keystroke.run_if(in_state(GameState::Game)),
@@ -101,10 +98,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             update_petrochemical_plant_visuals.run_if(in_state(GameState::Game)),
         )
-        .add_systems(
-            Update,
-            draw_petrochemical_plant_status.run_if(in_state(GameState::Game)),
-        )
+
         .add_systems(
             Update,
             spawn_petrochemical_plant_on_keystroke.run_if(in_state(GameState::Game)),
@@ -116,6 +110,8 @@ pub fn game_plugin(app: &mut App) {
                 scene_colliders::add_scene_colliders, 
                 scene_colliders::add_deep_scene_colliders,
                 scene_colliders::add_enemy_scene_colliders,
+                scene_colliders::add_enemy_deep_scene_colliders,
+                scene_colliders::add_player_unit_scene_colliders,
                 scene_colliders::handle_child_clicks,
                 scene_colliders::handle_child_hover,
                 click_colliders::add_debug_click_colliders,
@@ -126,10 +122,7 @@ pub fn game_plugin(app: &mut App) {
             Update,
             update_trench_construction.run_if(in_state(GameState::Game)),
         )
-        .add_systems(
-            Update,
-            draw_trench_construction_progress.run_if(in_state(GameState::Game)),
-        )
+
         .add_systems(
             Update,
             spawn_trench_on_keystroke.run_if(in_state(GameState::Game)),

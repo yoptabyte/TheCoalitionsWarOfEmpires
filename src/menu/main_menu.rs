@@ -21,6 +21,9 @@ pub struct WorldModel;
 pub struct MenuCamera;
 
 #[derive(Component)]
+pub struct BackgroundMusic;
+
+#[derive(Component)]
 pub struct LogoContainer;
 
 #[derive(Component)]
@@ -61,11 +64,11 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnMainMenuScreen,
     ));
 
-    // Simple, reliable lighting for the 3D model
+    // Brighter main lighting for the 3D model
     commands.spawn((
         DirectionalLightBundle {
             directional_light: DirectionalLight {
-                illuminance: 1000.0,
+                illuminance: 2000.0,
                 shadows_enabled: false,
                 ..default()
             },
@@ -75,11 +78,11 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnMainMenuScreen,
     ));
 
-    // Add a second light from another angle to ensure visibility
+    // Brighter second light from another angle to ensure full visibility
     commands.spawn((
         DirectionalLightBundle {
             directional_light: DirectionalLight {
-                illuminance: 800.0,
+                illuminance: 1500.0,
                 shadows_enabled: false,
                 ..default()
             },
@@ -89,11 +92,29 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         OnMainMenuScreen,
     ));
 
+    // Third light for complete illumination
+    commands.spawn((
+        DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                illuminance: 1000.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            transform: Transform::from_xyz(-50.0, 30.0, -30.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        OnMainMenuScreen,
+    ));
+
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(0.0, 10.0, 25.0)
                 .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
-            camera: Camera { ..default() },
+            camera: Camera {
+                // 3D cameras render in background
+                order: -1,
+                ..default()
+            },
             ..default()
         },
         MenuCamera,
@@ -125,9 +146,20 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let right_icon = asset_server.load("textures/Game Icons/right.png");
     let wrench_icon = asset_server.load("textures/Game Icons/wrench.png");
     let exit_icon = asset_server.load("textures/Game Icons/exitRight.png");
+    
+    // Играем фоновую музыку главного меню
+    commands.spawn((
+        AudioBundle {
+            source: asset_server.load("audio/main_menu.ogg"),
+            settings: PlaybackSettings::LOOP,
+        },
+        BackgroundMusic,
+        OnMainMenuScreen,
+    ));
 
     // UI root node with transparent background
-    commands
+    println!("🖼️ DEBUG: Creating UI root node...");
+    let root_entity = commands
         .spawn((
             NodeBundle {
                 style: Style {
@@ -145,6 +177,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .with_children(|parent| {
             // Logo container at the top
+            println!("📸 DEBUG: Creating logo container...");
             parent
                 .spawn((
                     NodeBundle {
@@ -156,12 +189,13 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             justify_content: JustifyContent::Center,
                             ..default()
                         },
-                        background_color: Color::NONE.into(),
+                        background_color: Color::rgba(1.0, 0.0, 0.0, 0.3).into(), // Red debug background
                         ..default()
                     },
                     LogoContainer,
                 ))
                 .with_children(|parent| {
+                    println!("🖼️ DEBUG: Creating logo image...");
                     parent.spawn(ImageBundle {
                         style: Style {
                             width: Val::Px(520.0),
@@ -174,6 +208,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
 
             // Button container offset to the left
+            println!("🔘 DEBUG: Creating button container...");
             parent
                 .spawn((
                     NodeBundle {
@@ -185,6 +220,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             top: Val::Vh(50.0),
                             ..default()
                         },
+                        background_color: Color::rgba(0.0, 1.0, 0.0, 0.3).into(), // Green debug background
                         ..default()
                     },
                     ButtonContainer,
@@ -381,6 +417,12 @@ pub fn menu_action(
                 MenuButtonAction::BackToSettings => {
                     menu_state.set(MenuState::Settings);
                 }
+                MenuButtonAction::Resume => {
+                    // This action is handled in the pause menu
+                }
+                MenuButtonAction::BackToMenu => {
+                    // This action is handled in the pause menu
+                }
             }
         }
     }
@@ -457,10 +499,12 @@ pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<Asset
                                     width: Val::Px(440.0),
                                     height: Val::Px(420.0),
                                     margin: UiRect::all(Val::Px(30.0)),
+                                    border: UiRect::all(Val::Px(0.0)),
                                     ..default()
                                 },
                                 image: UiImage::new(entente_image),
-                                background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                                background_color: Color::NONE.into(),
+                                border_color: Color::rgba(0.0, 0.8, 0.0, 0.0).into(),
                                 ..default()
                             },
                             Faction::Entente,
@@ -494,10 +538,12 @@ pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<Asset
                                     width: Val::Px(440.0),
                                     height: Val::Px(420.0),
                                     margin: UiRect::all(Val::Px(30.0)),
+                                    border: UiRect::all(Val::Px(0.0)),
                                     ..default()
                                 },
                                 image: UiImage::new(central_powers_image),
-                                background_color: Color::rgba(1.0, 1.0, 1.0, 0.9).into(),
+                                background_color: Color::NONE.into(),
+                                border_color: Color::rgba(0.0, 0.8, 0.0, 0.0).into(),
                                 ..default()
                             },
                             Faction::CentralPowers,
@@ -519,25 +565,29 @@ pub fn spawn_faction_selection(commands: &mut Commands, asset_server: &Res<Asset
     // No longer spawning the world map here - it's already spawned in main_menu_setup
 }
 
-// System for faction hover - now adds much brighter highlighting effect when hovering over faction images
+// System for faction hover - now adds green outline when hovering over faction images
 pub fn faction_hover_system(
     mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor),
+        (&Interaction, &mut BackgroundColor, &mut BorderColor, &mut Style),
         (Changed<Interaction>, With<Button>, With<Faction>),
     >,
 ) {
-    for (interaction, mut background_color) in &mut interaction_query {
+    for (interaction, mut background_color, mut border_color, mut style) in &mut interaction_query {
         match *interaction {
             Interaction::Hovered => {
-                *background_color = Color::rgba(1.0, 1.0, 1.0, 1.0).into();
+                *background_color = Color::NONE.into();
+                *border_color = Color::rgba(0.0, 0.8, 0.0, 1.0).into();
+                style.border = UiRect::all(Val::Px(4.0));
             }
             Interaction::None => {
-                // Dimmer when not hovering for better contrast
-                *background_color = Color::rgba(0.7, 0.7, 0.7, 0.9).into(); // More dimmed
+                *background_color = Color::NONE.into();
+                *border_color = Color::rgba(0.0, 0.8, 0.0, 0.0).into();
+                style.border = UiRect::all(Val::Px(0.0));
             }
             Interaction::Pressed => {
-                // Feedback when pressed
-                *background_color = Color::rgba(1.0, 1.0, 1.0, 1.0).into(); // Bright blue glow when pressed
+                *background_color = Color::NONE.into();
+                *border_color = Color::rgba(0.0, 1.0, 0.0, 1.0).into();
+                style.border = UiRect::all(Val::Px(6.0));
             }
         }
     }
@@ -549,16 +599,22 @@ pub fn faction_selection_system(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut player_faction: ResMut<crate::game::units::PlayerFaction>,
+    mut ai_faction: ResMut<crate::game::units::AIFaction>,
 ) {
     for (interaction, faction) in &mut interaction_query {
         if *interaction == Interaction::Pressed {
+            // Store the selected faction in the PlayerFaction resource
+            player_faction.0 = *faction;
+            
+            // Set AI faction to opposite of player
+            ai_faction.set_opposite_to_player(*faction);
+            
+            info!("Player selected faction: {:?}", faction);
+            info!("AI faction set to: {:?}", ai_faction.0);
+
             // When a faction is selected, transition to game state
             menu_state.set(MenuState::Disabled);
             game_state.set(GameState::Game);
-
-            // Store the selected faction in the PlayerFaction resource
-            player_faction.0 = *faction;
-            info!("Player selected faction: {:?}", faction);
         }
     }
 }

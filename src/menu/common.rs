@@ -15,6 +15,7 @@ pub enum GameState {
     Splash,
     Menu,
     Game,
+    Paused,
 }
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -49,6 +50,8 @@ pub enum MenuButtonAction {
     BackToMainMenu,
     BackToSettings,
     Quit,
+    Resume,
+    BackToMenu,
 }
 
 #[allow(dead_code)]

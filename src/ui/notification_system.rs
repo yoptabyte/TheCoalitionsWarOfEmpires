@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::game_plugin::OnGameScreen;
-use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil};
-use crate::game::components::{ForestFarm, FarmActive};
+
+
 
 // Resource to track notification states
 #[derive(Resource, Default)]

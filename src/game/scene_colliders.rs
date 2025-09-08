@@ -27,9 +27,11 @@ pub enum ColliderShape {
 pub fn add_enemy_scene_colliders(
     mut commands: Commands,
     enemy_query: Query<(Entity, &Children), (With<crate::game::Enemy>, Added<Children>)>,
+    enemy_tower_query: Query<(Entity, &Children), (With<crate::game::EnemyTower>, Added<Children>)>,
     mesh_query: Query<Entity, (With<Handle<Mesh>>, Without<Collider>)>,
     child_query: Query<&ChildOfClickable>,
 ) {
+    // Handle regular enemies
     for (enemy_entity, children) in enemy_query.iter() {
         info!("Processing NEW Enemy entity {} with {} children", enemy_entity.index(), children.len());
         
@@ -53,15 +55,42 @@ pub fn add_enemy_scene_colliders(
             }
         }
     }
+    
+    // Handle enemy towers
+    for (tower_entity, children) in enemy_tower_query.iter() {
+        info!("Processing NEW EnemyTower entity {} with {} children", tower_entity.index(), children.len());
+        
+        // Find all mesh children and add colliders to them
+        for &child in children.iter() {
+            // Skip if already processed
+            if child_query.get(child).is_ok() {
+                continue;
+            }
+            
+            if let Ok(_) = mesh_query.get(child) {
+                info!("Adding collider to EnemyTower mesh child {}", child.index());
+                
+                // Add collider and picking to the mesh child
+                commands.entity(child).insert((
+                    Collider::cuboid(1.2, 1.5, 1.2), // Tower collider (taller)
+                    PickableBundle::default(),
+                    Sensor, // Make it a sensor so it doesn't interfere with physics
+                    ChildOfClickable { parent: tower_entity },
+                ));
+            }
+        }
+    }
 }
 
 /// System to recursively find and add colliders to ALL Enemy mesh descendants
 pub fn add_enemy_deep_scene_colliders(
     mut commands: Commands,
     enemy_query: Query<Entity, (With<crate::game::Enemy>, Added<Children>)>,
+    enemy_tower_query: Query<Entity, (With<crate::game::EnemyTower>, Added<Children>)>,
     children_query: Query<&Children>,
     mesh_query: Query<Entity, (With<Handle<Mesh>>, Without<Collider>)>,
 ) {
+    // Handle regular enemies
     for enemy_entity in enemy_query.iter() {
         info!("Processing Enemy entity {} for deep colliders", enemy_entity.index());
         
@@ -80,6 +109,104 @@ pub fn add_enemy_deep_scene_colliders(
             ));
             
             info!("Added deep mesh collider to {} for Enemy parent {}", mesh_entity.index(), enemy_entity.index());
+        }
+    }
+    
+    // Handle enemy towers
+    for tower_entity in enemy_tower_query.iter() {
+        info!("Processing EnemyTower entity {} for deep colliders", tower_entity.index());
+        
+        // Recursively find all mesh descendants
+        let mut mesh_entities = Vec::new();
+        find_mesh_descendants(tower_entity, &children_query, &mesh_query, &mut mesh_entities);
+        
+        info!("Found {} mesh descendants for EnemyTower {}", mesh_entities.len(), tower_entity.index());
+        
+        for mesh_entity in mesh_entities {
+            commands.entity(mesh_entity).insert((
+                Collider::cuboid(1.2, 1.5, 1.2), // Tower mesh collider (taller)
+                PickableBundle::default(),
+                Sensor,
+                ChildOfClickable { parent: tower_entity },
+            ));
+            
+            info!("Added deep mesh collider to {} for EnemyTower parent {}", mesh_entity.index(), tower_entity.index());
+        }
+    }
+}
+
+/// System to automatically add colliders to Player units (Tank, Infantry, Aircraft) with SceneBundle
+pub fn add_player_unit_scene_colliders(
+    mut commands: Commands,
+    tank_query: Query<(Entity, &Children), (With<TankMarker>, Without<Enemy>, Added<Children>)>,
+    infantry_query: Query<(Entity, &Children), (With<crate::game::units::infantry::Infantry>, Without<Enemy>, Added<Children>)>,
+    aircraft_query: Query<(Entity, &Children), (With<crate::game::components::Aircraft>, Without<Enemy>, Added<Children>)>,
+    mesh_query: Query<Entity, (With<Handle<Mesh>>, Without<Collider>)>,
+    child_query: Query<&ChildOfClickable>,
+) {
+    // Handle player tanks
+    for (tank_entity, children) in tank_query.iter() {
+        info!("Processing NEW Player Tank entity {} with {} children", tank_entity.index(), children.len());
+        
+        for &child in children.iter() {
+            if child_query.get(child).is_ok() {
+                continue;
+            }
+            
+            if let Ok(_) = mesh_query.get(child) {
+                info!("Adding collider to Player Tank mesh child {}", child.index());
+                
+                commands.entity(child).insert((
+                    Collider::cuboid(0.8, 0.6, 1.2), // Tank collider
+                    PickableBundle::default(),
+                    Sensor,
+                    ChildOfClickable { parent: tank_entity },
+                ));
+            }
+        }
+    }
+    
+    // Handle player infantry
+    for (infantry_entity, children) in infantry_query.iter() {
+        info!("Processing NEW Player Infantry entity {} with {} children", infantry_entity.index(), children.len());
+        
+        for &child in children.iter() {
+            if child_query.get(child).is_ok() {
+                continue;
+            }
+            
+            if let Ok(_) = mesh_query.get(child) {
+                info!("Adding collider to Player Infantry mesh child {}", child.index());
+                
+                commands.entity(child).insert((
+                    Collider::ball(0.5), // Infantry collider
+                    PickableBundle::default(),
+                    Sensor,
+                    ChildOfClickable { parent: infantry_entity },
+                ));
+            }
+        }
+    }
+    
+    // Handle player aircraft
+    for (aircraft_entity, children) in aircraft_query.iter() {
+        info!("Processing NEW Player Aircraft entity {} with {} children", aircraft_entity.index(), children.len());
+        
+        for &child in children.iter() {
+            if child_query.get(child).is_ok() {
+                continue;
+            }
+            
+            if let Ok(_) = mesh_query.get(child) {
+                info!("Adding collider to Player Aircraft mesh child {}", child.index());
+                
+                commands.entity(child).insert((
+                    Collider::cuboid(1.2, 0.3, 2.0), // Aircraft collider
+                    PickableBundle::default(),
+                    Sensor,
+                    ChildOfClickable { parent: aircraft_entity },
+                ));
+            }
         }
     }
 }

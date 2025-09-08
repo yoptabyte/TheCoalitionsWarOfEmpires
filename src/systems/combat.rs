@@ -47,25 +47,40 @@ pub fn handle_attacks(
         let is_enemy_steel_factory = query_enemy_steel_factory.get(event.target).is_ok();
         let is_enemy_petro_plant = query_enemy_petro_plant.get(event.target).is_ok();
         
-        // Check if this is a mesh child of an enemy (for 3D models)
+        info!("Target checks: enemy={}, tower={}, mine={}, factory={}, petro={}", 
+              is_enemy, is_enemy_tower, is_enemy_mine, is_enemy_steel_factory, is_enemy_petro_plant);
+        
+        // Дополнительная отладка для башен
+        if let Ok(_) = query_enemy_tower.get(event.target) {
+            info!("✅ Entity {:?} HAS EnemyTower component!", event.target);
+        } else {
+            info!("❌ Entity {:?} does NOT have EnemyTower component", event.target);
+        }
+        
+        // Обрабатываем клики по дочерним элементам 3D моделей
         let mut target_entity = event.target;
         let mut is_child_of_enemy = false;
         let mut is_click_collider = false;
         
+        // Сначала проверяем, есть ли ChildOfClickable компонент
         if let Ok(child_of_clickable) = child_query.get(event.target) {
-            info!("Click on mesh child detected, checking parent entity {}", child_of_clickable.parent.index());
+            info!("✅ Click on mesh child detected, redirecting to parent entity {}", child_of_clickable.parent.index());
             target_entity = child_of_clickable.parent;
-            is_child_of_enemy = query_enemy.get(target_entity).is_ok() || 
-                              query_enemy_tower.get(target_entity).is_ok() ||
-                              query_enemy_mine.get(target_entity).is_ok() ||
-                              query_enemy_steel_factory.get(target_entity).is_ok() ||
-                              query_enemy_petro_plant.get(target_entity).is_ok();
-            info!("Child of enemy check: is_child_of_enemy = {}", is_child_of_enemy);
+            // Перепроверяем компоненты для родительского entity
+            let parent_is_enemy = query_enemy.get(target_entity).is_ok();
+            let parent_is_enemy_tower = query_enemy_tower.get(target_entity).is_ok();
+            let parent_is_enemy_mine = query_enemy_mine.get(target_entity).is_ok();
+            let parent_is_enemy_steel_factory = query_enemy_steel_factory.get(target_entity).is_ok();
+            let parent_is_enemy_petro_plant = query_enemy_petro_plant.get(target_entity).is_ok();
+            
+            is_child_of_enemy = parent_is_enemy || parent_is_enemy_tower || parent_is_enemy_mine || parent_is_enemy_steel_factory || parent_is_enemy_petro_plant;
+            info!("Parent entity checks: enemy={}, tower={}, mine={}, factory={}, petro={}, is_child_of_enemy={}", 
+                  parent_is_enemy, parent_is_enemy_tower, parent_is_enemy_mine, parent_is_enemy_steel_factory, parent_is_enemy_petro_plant, is_child_of_enemy);
         }
         
-        // Check if this is a click collider linked to an enemy
+        // Проверяем LinkedToEnemy компонент
         if let Ok(linked) = collider_query.get(event.target) {
-            info!("Click on linked collider detected, targeting enemy entity {}", linked.0.index());
+            info!("✅ Click on linked collider detected, redirecting to linked entity {}", linked.0.index());
             target_entity = linked.0;
             is_click_collider = true;
         }

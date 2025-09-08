@@ -3,7 +3,7 @@ use bevy_hanabi::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_rapier3d::prelude::*;
-use std::time::Duration;
+
 
 mod game;
 mod input;
@@ -19,7 +19,7 @@ use menu::common::{DisplayQuality, GameState, Volume};
 use systems::*;
 use ui::menu::menu_plugin;
 use ui::splash::splash_plugin;
-use ui::*;
+
 use utils::*;
 
 /// Marker for UI camera to allow removing it when transitioning to game
@@ -54,7 +54,7 @@ fn main() {
         }))
         .add_plugins(HanabiPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(RapierDebugRenderPlugin::default())
+
         .add_plugins(
             DefaultPickingPlugins
                 .build()
@@ -74,6 +74,7 @@ fn main() {
         .init_resource::<ui::money_ui::AIIron>()
         .init_resource::<ui::money_ui::AISteel>()
         .init_resource::<ui::money_ui::AIOil>()
+        .init_resource::<systems::victory_system::VictoryState>()
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
@@ -85,12 +86,13 @@ fn main() {
         )
         .add_systems(
             Update,
+            handle_escape_key.run_if(in_state(GameState::Game).or_else(in_state(GameState::Paused))),
+        )
+        .add_systems(
+            Update,
             (
                 process_movement_orders,
-                draw_click_circle,
-                draw_movement_lines,
-                draw_hover_outline,
-                draw_health_bars,
+                ui::health_bars::draw_health_bars,
                 aircraft_movement,
                 systems::combat::handle_trench_damage,
             )
@@ -145,6 +147,14 @@ fn main() {
         )
         .add_systems(
             Update,
+            (
+                systems::victory_system::check_victory_conditions,
+                systems::victory_system::handle_victory_timers,
+                systems::cheat_system::handle_cheat_keys,
+            ).run_if(in_state(GameState::Game)),
+        )
+        .add_systems(
+            Update,
             systems::ai_economy::ai_resource_generation_system.run_if(in_state(GameState::Game)),
         )
         .add_systems(
@@ -162,7 +172,7 @@ fn main() {
             OnEnter(GameState::Game),
             systems::ai_economy::ai_initial_resources_system,
         )
-        .add_systems(OnExit(GameState::Game), reset_placement_state)
+        .add_systems(OnExit(GameState::Game), (reset_placement_state, reset_game_state))
         .add_plugins((
             splash_plugin,
             menu_plugin,
@@ -177,8 +187,8 @@ fn setup_ui_camera(mut commands: Commands) {
     commands.spawn((
         Camera2dBundle {
             camera: Camera {
-                // Set higher priority so UI renders on top
-                order: 1,
+                // UI cameras have highest priority
+                order: 10,  // Higher priority than 0
                 ..default()
             },
             ..default()
@@ -190,6 +200,51 @@ fn setup_ui_camera(mut commands: Commands) {
 fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
     placement_state.active = false;
     placement_state.shape_type = None;
+}
+
+fn reset_game_state(
+    mut money: ResMut<ui::money_ui::Money>,
+    mut wood: ResMut<ui::money_ui::Wood>,
+    mut iron: ResMut<ui::money_ui::Iron>,
+    mut steel: ResMut<ui::money_ui::Steel>,
+    mut oil: ResMut<ui::money_ui::Oil>,
+    mut ai_money: ResMut<ui::money_ui::AIMoney>,
+    mut ai_wood: ResMut<ui::money_ui::AIWood>,
+    mut ai_iron: ResMut<ui::money_ui::AIIron>,
+    mut ai_steel: ResMut<ui::money_ui::AISteel>,
+    mut ai_oil: ResMut<ui::money_ui::AIOil>,
+    mut turn_state: ResMut<systems::turn_system::TurnState>,
+    mut victory_state: ResMut<systems::victory_system::VictoryState>,
+    mut selected_entity: ResMut<SelectedEntity>,
+) {
+    // Reset player resources to starting values
+    money.0 = 100.0;
+    wood.0 = 50.0;
+    iron.0 = 30.0;
+    steel.0 = 10.0;
+    oil.0 = 10.0;
+    
+    // Reset AI resources to starting values
+    ai_money.0 = 20.0;
+    ai_wood.0 = 15.0;
+    ai_iron.0 = 10.0;
+    ai_steel.0 = 5.0;
+    ai_oil.0 = 5.0;
+    
+    // Reset turn state
+    turn_state.current_player = systems::turn_system::PlayerTurn::Human;
+    turn_state.time_left = 30.0; // TURN_DURATION
+    turn_state.turn_number = 1;
+    
+    // Reset victory state
+    victory_state.game_ended = false;
+    victory_state.victory_timer = None;
+    victory_state.defeat_timer = None;
+    
+    // Clear selected entity
+    selected_entity.0 = None;
+    
+    println!("🔄 Game state reset for new game");
 }
 
 fn fps_limiter_system(mut fps_limiter: ResMut<FpsLimiter>) {
@@ -221,20 +276,12 @@ pub mod game_plugin {
     pub fn game_plugin(app: &mut App) {
         app.add_systems(
             OnEnter(GameState::Game),
-            (game_setup, spawn_initial_aircraft),
+            spawn_initial_aircraft,
         )
         .add_systems(Update, game_system.run_if(in_state(GameState::Game)))
         .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
     }
 
-    fn game_setup(
-        commands: Commands,
-        meshes: ResMut<Assets<Mesh>>,
-        materials: ResMut<Assets<StandardMaterial>>,
-        asset_server: Res<AssetServer>,
-    ) {
-        crate::game::setup::setup(commands, meshes, materials, asset_server);
-    }
 
     fn game_system() {
         todo!("Game logic");

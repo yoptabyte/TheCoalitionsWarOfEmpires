@@ -35,6 +35,7 @@ pub fn spawn_confirm_dialog(commands: &mut Commands, asset_server: &Res<AssetSer
                     ..default()
                 },
                 background_color: Color::rgba(0.0, 0.0, 0.0, 0.5).into(),
+                z_index: ZIndex::Global(1001), // Выше всего, включая AI turn screen и pause menu
                 ..default()
             },
             ConfirmDialog,
@@ -145,17 +146,22 @@ pub fn handle_confirm_dialog_actions(
         if *interaction == Interaction::Pressed {
             match action {
                 ConfirmDialogAction::Yes => {
-                    // Return to main menu
+                    println!("DEBUG: Confirm dialog YES pressed - transitioning to main menu");
+                    // First despawn the dialog
+                    for entity in dialog_query.iter() {
+                        commands.entity(entity).despawn_recursive();
+                    }
+                    // Return to main menu - только GameState, MenuState установится автоматически
+                    println!("DEBUG: Setting GameState::Menu (MenuState will be set automatically)");
                     game_state.set(GameState::Menu);
-                    menu_state.set(MenuState::Main);
+                    // НЕ устанавливаем menu_state.set(MenuState::Main) здесь!
                 }
                 ConfirmDialogAction::No => {
                     // Just close the dialog
+                    for entity in dialog_query.iter() {
+                        commands.entity(entity).despawn_recursive();
+                    }
                 }
-            }
-            // Despawn the dialog
-            if let Ok(dialog) = dialog_query.get_single() {
-                commands.entity(dialog).despawn_recursive();
             }
         }
     }

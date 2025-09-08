@@ -2,9 +2,11 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_mod_picking::prelude::*;
 use crate::menu::main_menu::Faction;
-use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank, Mine, SteelFactory, PetrochemicalPlant, Selectable};
-use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil, AIMoney, AIWood, AIIron, AISteel, AIOil, PurchasableItem, can_afford_item_ai, deduct_resources_ai};
+use crate::game::{Enemy, Health, CanShoot, ShapeType, MovementOrder, Tank, Selectable};
+
+use crate::ui::money_ui::{AIMoney, AIWood, AIIron, AISteel, AIOil, PurchasableItem, can_afford_item_ai, deduct_resources_ai};
 use crate::systems::turn_system::{TurnState, PlayerTurn};
+use std::collections::HashSet;
 
 #[derive(Resource, Debug)]
 pub struct AIBehavior {
@@ -245,7 +247,8 @@ fn simple_spawn_ai_unit(
                     damage: 12.0,
                 },
                 RigidBody::Dynamic,
-                Collider::cuboid(2.0, 2.0, 2.0), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::cuboid(5.0, 5.0, 5.0), // Очень большой коллайдер для AI танков
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
@@ -296,7 +299,8 @@ fn simple_spawn_ai_unit(
                     damage: 8.0,
                 },
                 RigidBody::Dynamic,
-                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::ball(3.0), // Очень большой коллайдер для AI пехоты
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
@@ -344,7 +348,8 @@ fn simple_spawn_ai_unit(
                     damage: 15.0,
                 },
                 RigidBody::Fixed,
-                Collider::cuboid(1.0, 0.25, 2.0),
+                Collider::cuboid(7.0, 4.0, 8.0), // Очень большой коллайдер для AI самолетов
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::all(),
                 PickableBundle::default(),
                 Name::new("AI Aircraft"),
@@ -525,7 +530,8 @@ fn spawn_ai_unit(
                     damage: 8.0,
                 },
                 RigidBody::Dynamic,
-                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::ball(3.0), // Очень большой коллайдер для AI пехоты
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y, // Заблокируем вращение и движение по Y
                 Restitution::coefficient(0.0), // Без отскока
                 Friction::coefficient(0.8), // Трение
@@ -573,7 +579,7 @@ fn spawn_ai_unit(
                     damage: 15.0,
                 },
                 RigidBody::Fixed, // Самолеты теперь фиксированы в воздухе
-                Collider::cuboid(1.0, 0.25, 2.0), // Коллайдер самолета ИИ для детекции попаданий
+                Collider::cuboid(5.0, 2.5, 6.0), // Большой коллайдер для AI самолетов
                 LockedAxes::all(), // Блокируем все движения
                 PickableBundle::default(),
                 Name::new("AI Aircraft"),
@@ -738,9 +744,15 @@ pub fn ai_combat_system(
     
     let current_time = time.elapsed_seconds();
     
+    // Отслеживаем, какие цели уже атакуются в этом кадре
+    let mut targets_being_attacked: HashSet<Entity> = HashSet::new();
+    
+    // Собираем всех AI юнитов, готовых к атаке, и сортируем по расстоянию до ближайшей цели
+    let mut ready_ai_units: Vec<(Entity, Vec3, f32, f32)> = Vec::new(); // Entity, position, range, closest_distance
+    
     for (ai_entity, ai_transform, mut can_shoot) in ai_units.iter_mut() {
         // Создаем уникальную задержку для каждого юнита на основе их ID
-        let unit_specific_delay = (ai_entity.index() as f32 * 0.3) % 1.5; // Разброс от 0 до 1.5 секунд
+        let unit_specific_delay = (ai_entity.index() as f32 * 0.3) % 1.5;
         let adjusted_cooldown = can_shoot.cooldown + unit_specific_delay;
         
         // Проверяем кулдаун с индивидуальной задержкой
@@ -748,11 +760,42 @@ pub fn ai_combat_system(
             continue;
         }
         
-        // Ищем цели в радиусе
-        for (target_entity, target_transform, mut target_health) in player_units.iter_mut() {
+        // Найдем ближайшую цель для этого юнита
+        let mut closest_distance = f32::INFINITY;
+        for (_, target_transform, _) in player_units.iter() {
             let distance = ai_transform.translation.distance(target_transform.translation);
+            if distance <= can_shoot.range && distance < closest_distance {
+                closest_distance = distance;
+            }
+        }
+        
+        if closest_distance < f32::INFINITY {
+            ready_ai_units.push((ai_entity, ai_transform.translation, can_shoot.range, closest_distance));
+        }
+    }
+    
+    // Сортируем AI юнитов по расстоянию до ближайшей цели (ближайшие атакуют первыми)
+    ready_ai_units.sort_by(|a, b| a.3.partial_cmp(&b.3).unwrap());
+    
+    // Теперь обрабатываем атаки, избегая множественных атак на одну цель
+    for (ready_ai_entity, ai_pos, ai_range, _) in ready_ai_units {
+        // Получаем мутабельную ссылку на CanShoot для этого юнита
+        if let Ok((_, _, mut can_shoot)) = ai_units.get_mut(ready_ai_entity) {
+        let mut target_found = false;
+        
+        // Ищем цели в радиусе, которые еще не атакуются
+        for (target_entity, target_transform, mut target_health) in player_units.iter_mut() {
+            // Пропускаем цели, которые уже атакуются
+            if targets_being_attacked.contains(&target_entity) {
+                continue;
+            }
             
-            if distance <= can_shoot.range {
+            let distance = ai_pos.distance(target_transform.translation);
+            
+            if distance <= ai_range {
+                // Отмечаем эту цель как атакуемую
+                targets_being_attacked.insert(target_entity);
+                
                 // Атакуем
                 target_health.current -= can_shoot.damage;
                 can_shoot.last_shot = current_time;
@@ -767,9 +810,16 @@ pub fn ai_combat_system(
                     info!("Player unit destroyed by AI!");
                 }
                 
+                target_found = true;
                 break; // Атакуем только одну цель за раз
             }
         }
+        
+        // Если юнит не нашел цель, он не атакует в этом кадре
+        if !target_found {
+            // Можно добавить логику поиска цели или движения
+        }
+        } // Закрываем if let Ok
     }
 }
 

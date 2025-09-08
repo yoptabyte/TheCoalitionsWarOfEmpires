@@ -816,10 +816,7 @@ fn cleanup_game_entities(
         commands.entity(entity).despawn_recursive();
     }
 
-    // Despawn UI camera
-    for entity in ui_camera_query.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
+    // Don't despawn UI camera - it will be managed by the menu system
 
     // Despawn all point lights
     for entity in light_query.iter() {
@@ -831,8 +828,7 @@ fn cleanup_game_entities(
         commands.entity(entity).despawn_recursive();
     }
 
-    // Spawn new UI camera for menu
-    commands.spawn((Camera2dBundle::default(), UICamera));
+    // UI camera will be managed by the menu system
 }
 
 #[allow(dead_code)]
@@ -1219,7 +1215,8 @@ pub fn place_shape(
                     damage: 10.0,
                 },
                 RigidBody::Dynamic,
-                Collider::cuboid(2.0, 2.0, 2.0), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::cuboid(5.0, 5.0, 5.0), // Очень большой коллайдер для танков
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
                 Friction::coefficient(0.8),
@@ -1275,7 +1272,8 @@ pub fn place_shape(
                     damage: 15.0,
                 },
                 RigidBody::Fixed,
-                Collider::cuboid(3.0, 1.0, 4.0), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::cuboid(7.0, 4.0, 8.0), // Очень большой коллайдер для самолетов
+                Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::all(),
                 bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("Player Aircraft"),
@@ -1357,7 +1355,8 @@ pub fn place_shape(
                 HoveredOutline,
                 RigidBody::Dynamic,
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
-                Collider::ball(1.5), // Увеличенный коллайдер для лучшей кликабельности
+                Collider::ball(3.0), // Очень большой коллайдер для пехоты
+                Sensor, // Невидимый коллайдер для кликов
                 bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("Player Infantry"),
             )).id();
