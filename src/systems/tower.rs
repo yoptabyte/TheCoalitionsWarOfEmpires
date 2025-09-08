@@ -44,45 +44,4 @@ pub fn update_tower_health_status(
     }
 }
 
-/// System to spawn towers at predefined locations using keyboard shortcuts
-pub fn spawn_tower_on_keystroke(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
-    // Spawn a tower at a fixed position when 'T' is pressed
-    if keyboard.just_pressed(KeyCode::KeyT) {
-        let tower_position = Vec3::new(0.0, 0.0, -5.0); // Default position
-        info!("Spawning new tower at position: {:?}", tower_position);
-        crate::game::setup::spawn_tower(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            tower_position,
-        );
-    }
-    
-    // Spawn towers at different positions with different keys
-    if keyboard.just_pressed(KeyCode::Digit1) {
-        let tower_position = Vec3::new(-5.0, 0.0, -5.0);
-        info!("Spawning tower 1 at position: {:?}", tower_position);
-        crate::game::setup::spawn_tower(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            tower_position,
-        );
-    }
-    
-    if keyboard.just_pressed(KeyCode::Digit2) {
-        let tower_position = Vec3::new(5.0, 0.0, -5.0);
-        info!("Spawning tower 2 at position: {:?}", tower_position);
-        crate::game::setup::spawn_tower(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            tower_position,
-        );
-    }
-} 
+// Функция spawn_tower_on_keystroke удалена - не нужна 

@@ -58,6 +58,7 @@ pub enum PurchasableItem {
     Tank,
     Infantry,
     Airplane,
+    Farm,
     Mine,
     SteelFactory,
     PetrochemicalPlant,
@@ -69,6 +70,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 45.0,      // Средняя стоимость танков
             PurchasableItem::Infantry => 16.0,  // Средняя стоимость пехоты  
             PurchasableItem::Airplane => 40.0,  // Средняя стоимость самолетов
+            PurchasableItem::Farm => 85.0,      // Высокая стоимость фермы для баланса
             PurchasableItem::Mine => 30.0,      // Стоимость шахты
             PurchasableItem::SteelFactory => 40.0,  // Стоимость сталелитейного завода
             PurchasableItem::PetrochemicalPlant => 50.0, // Стоимость нефтезавода
@@ -80,6 +82,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 5.0,       // Средние требования танков
             PurchasableItem::Infantry => 0.0,   // Пехота не требует дерева
             PurchasableItem::Airplane => 9.0,   // Средние требования самолетов
+            PurchasableItem::Farm => 25.0,      // Фермы требуют много дерева для постройки
             PurchasableItem::Mine => 8.0,       // Требования шахты
             PurchasableItem::SteelFactory => 12.0, // Требования завода
             PurchasableItem::PetrochemicalPlant => 15.0, // Требования нефтезавода
@@ -91,6 +94,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 7.0,       // Средние требования танков
             PurchasableItem::Infantry => 0.0,   // Пехота не требует железа
             PurchasableItem::Airplane => 4.0,   // Средние требования самолетов
+            PurchasableItem::Farm => 3.0,       // Фермы требуют немного железа для инструментов
             PurchasableItem::Mine => 0.0,       // Шахта не требует железа
             PurchasableItem::SteelFactory => 15.0, // Требования завода
             PurchasableItem::PetrochemicalPlant => 10.0, // Требования нефтезавода
@@ -102,6 +106,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 6.0,       // Средние требования танков
             PurchasableItem::Infantry => 0.0,   // Пехота не требует стали
             PurchasableItem::Airplane => 5.0,   // Средние требования самолетов
+            PurchasableItem::Farm => 0.0,       // Фермы не требуют стали
             PurchasableItem::Mine => 0.0,       // Шахта не требует стали
             PurchasableItem::SteelFactory => 0.0, // Завод не требует стали
             PurchasableItem::PetrochemicalPlant => 8.0, // Требования нефтезавода
@@ -113,6 +118,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => 11.0,      // Средние требования танков
             PurchasableItem::Infantry => 0.0,   // Пехота не требует нефти
             PurchasableItem::Airplane => 17.0,  // Средние требования самолетов
+            PurchasableItem::Farm => 0.0,       // Фермы не требуют нефти
             PurchasableItem::Mine => 0.0,       // Шахта не требует нефти
             PurchasableItem::SteelFactory => 0.0, // Завод не требует нефти
             PurchasableItem::PetrochemicalPlant => 0.0, // Нефтезавод не требует нефти
@@ -124,6 +130,7 @@ impl PurchasableItem {
             PurchasableItem::Tank => ShapeType::Cube,
             PurchasableItem::Infantry => ShapeType::Infantry,
             PurchasableItem::Airplane => ShapeType::Airplane,
+            PurchasableItem::Farm => ShapeType::Farm,
             PurchasableItem::Mine => ShapeType::Mine,
             PurchasableItem::SteelFactory => ShapeType::SteelFactory,
             PurchasableItem::PetrochemicalPlant => ShapeType::PetrochemicalPlant,
@@ -1180,15 +1187,15 @@ pub fn place_shape(
             let (model_path, scale) = match player_faction.0 {
                 Faction::Entente => {
                     match tank_type_index {
-                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.1), // tsar_tank уменьшен в 4 раза
+                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.05), // tsar_tank уменьшен в 8 раз (в 2 раза меньше чем было)
                         1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 уменьшен в 5 раз
                         _ => ("models/entente/tanks/renault_ft17.glb#Scene0", 0.4), // renault остается нормальным
                     }
                 },
                 Faction::CentralPowers => {
                     match tank_type_index {
-                        0 => ("models/central_powers/tanks/panzerwagen.glb#Scene0", 0.08), // panzerwagen уменьшен в 5 раз
-                        1 => ("models/central_powers/tanks/a7v.glb#Scene0", 0.08), // a7v уменьшен в 5 раз
+                        0 => ("models/central_powers/tanks/panzerwagen.glb#Scene0", 0.027), // panzerwagen уменьшен в 3 раза от предыдущего размера
+                        1 => ("models/central_powers/tanks/a7v.glb#Scene0", 0.04), // a7v уменьшен в 2 раза от предыдущего размера
                         _ => ("models/central_powers/tanks/steam_wheel_tank.glb#Scene0", 0.08), // steam_wheel остается как был
                     }
                 },
@@ -1337,7 +1344,7 @@ pub fn place_shape(
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(position)
-                        .with_scale(Vec3::splat(0.5)),
+                        .with_scale(Vec3::splat(0.8)),
                     ..default()
                 },
                 Infantry,

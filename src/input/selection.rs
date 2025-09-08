@@ -1,10 +1,8 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
-use bevy_hanabi::ParticleEffectBundle;
-use bevy_hanabi::ParticleEffect;
 use bevy_rapier3d::prelude::*;
 
-use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, ClickEffectHandle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy, Tank, Aircraft};
+use crate::game::{Selectable, SelectedEntity, Ground, MovementOrder, ClickCircle, Enemy, EnemyTower, Farm, Mine, SteelFactory, PetrochemicalPlant, ShapeType, Health, LinkedToEnemy, Tank, Aircraft};
 use crate::game::scene_colliders::ChildOfClickable;
 use crate::game::units::infantry::Infantry;
 use crate::systems::turn_system::{TurnState, PlayerTurn};
@@ -289,7 +287,6 @@ pub fn handle_ground_clicks(
     query_ground: Query<(), With<Ground>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
-    click_effect_handle: Res<ClickEffectHandle>,
     selected_entity_res: Res<SelectedEntity>,
     turn_state: Res<TurnState>,
 ) {
@@ -330,16 +327,6 @@ pub fn handle_ground_clicks(
                 // Update click circle display info
                 click_circle.position = Some(target_point);
                 click_circle.spawn_time = Some(time.elapsed_seconds());
-                
-                // Create particle effect at click location
-                commands.spawn((
-                    Name::new("click_particles"),
-                    ParticleEffectBundle {
-                        effect: ParticleEffect::new(click_effect_handle.0.clone()),
-                        transform: Transform::from_translation(target_point),
-                        ..default()
-                    },
-                ));
             } else {
                 info!("handle_ground_clicks: Entity {:?} no longer exists, cannot move", entity_to_move);
             }
@@ -364,7 +351,6 @@ pub fn handle_placement_clicks(
     query_ground: Query<(), With<Ground>>,
     mut click_circle: ResMut<ClickCircle>,
     time: Res<Time>,
-    click_effect_handle: Res<ClickEffectHandle>,
     mut placement_state: ResMut<crate::game::PlacementState>,
     mut processed_clicks: ResMut<ProcessedClicks>,
     turn_state: Res<TurnState>,
@@ -434,16 +420,6 @@ pub fn handle_placement_clicks(
         The place_shape() function above now handles all object creation properly.
         
         */
-        
-        // Create particle effect at click location
-        commands.spawn((
-            Name::new("placement_particles"),
-            ParticleEffectBundle {
-                effect: ParticleEffect::new(click_effect_handle.0.clone()),
-                transform: Transform::from_translation(target_point),
-                ..default()
-            },
-        ));
         
         // Set position for click circle display
         click_circle.position = Some(target_point);

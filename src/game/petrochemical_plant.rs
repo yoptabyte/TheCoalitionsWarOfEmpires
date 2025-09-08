@@ -99,6 +99,11 @@ pub fn draw_petrochemical_plant_status(
     time: Res<Time>,
 ) {
     for (transform, active, income_rate, oil_rate) in &plant_query {
+        // Skip if position is at origin or invalid
+        if transform.translation == Vec3::ZERO || transform.translation.length() < 0.1 {
+            continue;
+        }
+        
         let position = transform.translation + Vec3::new(0.0, 1.2, 0.0);
         
         if active.0 {

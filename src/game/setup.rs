@@ -13,7 +13,16 @@ pub fn setup(
     asset_server: Res<AssetServer>,
     player_faction: Res<PlayerFaction>,
     ai_faction: Res<AIFaction>,
+    // Add query to clean up any existing cameras
+    existing_cameras: Query<Entity, With<Camera>>,
 ) {
+    // Clean up any existing cameras to prevent conflicts
+    for camera_entity in existing_cameras.iter() {
+        if let Some(entity_commands) = commands.get_entity(camera_entity) {
+            entity_commands.despawn_recursive();
+            println!("🧹 Cleaned up existing camera: {:?}", camera_entity);
+        }
+    }
 
     // Forest Farm
     spawn_active_forest_farm(
@@ -58,13 +67,14 @@ pub fn setup(
         ..default()
     });
 
-    // camera
+    // camera - positioned to look at the battlefield center, not at Vec3::ZERO
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(-2.5, 15.0, 20.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             camera: Camera {
                 // 3D cameras render in background
                 order: -1,
+                clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.2, 0.3)), // Dark blue sky
                 ..default()
             },
             ..default()

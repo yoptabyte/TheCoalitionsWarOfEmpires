@@ -8,10 +8,16 @@ pub fn draw_health_bars(
 ) {
     for (transform, health) in query.iter() {
         let pos = transform.translation;
+        
+        // Skip if position is at origin or invalid
+        if pos == Vec3::ZERO || pos.length() < 0.1 {
+            continue;
+        }
+        
         let health_percentage = health.current / health.max;
         
-        // Health bar position (above the tower)
-        let bar_pos = pos + Vec3::new(0.0, 8.0, 0.0);
+        // Health bar position (above the tower) - поднято намного выше для больших башен
+        let bar_pos = pos + Vec3::new(0.0, 25.0, 0.0);
         let bar_width = 3.0;
         let bar_height = 0.5;
         

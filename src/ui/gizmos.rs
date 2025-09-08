@@ -14,6 +14,11 @@ pub fn draw_click_circle(
     time: Res<Time>,
 ) {
     if let (Some(pos), Some(spawn_time)) = (click_circle.position, click_circle.spawn_time) {
+        // Skip if position is at origin or invalid
+        if pos == Vec3::ZERO || pos.length() < 0.1 {
+            return;
+        }
+        
         let elapsed = time.elapsed_seconds() - spawn_time;
         if elapsed < CIRCLE_LIFETIME {
             let progress = elapsed / CIRCLE_LIFETIME; // progress from 0.0 to 1.0

@@ -7,6 +7,7 @@ pub mod ai_economy;
 pub mod ai_opponent;
 pub mod victory_system;
 pub mod cheat_system;
+pub mod enemy_visual_markers;
 
 pub use aircraft::*;
 #[allow(unused_imports)]
@@ -17,6 +18,7 @@ pub use turn_system::*;
 pub use ai_opponent::*;
 pub use victory_system::*;
 pub use cheat_system::*;
+pub use enemy_visual_markers::*;
 
 use bevy::prelude::ResMut;
 

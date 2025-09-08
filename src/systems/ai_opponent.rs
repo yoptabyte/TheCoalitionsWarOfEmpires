@@ -92,13 +92,16 @@ pub fn ai_purchase_system(
     mut ai_oil: ResMut<AIOil>,
     time: Res<Time>,
     ai_faction: Res<crate::game::units::AIFaction>,
-    // Компактные запросы для подсчета
-    ai_tanks: Query<(), (With<crate::game::Tank>, With<Enemy>)>,
-    ai_infantry: Query<(), (With<crate::game::ShapeType>, With<Enemy>)>,
-    ai_aircraft: Query<(), (With<crate::game::Aircraft>, With<Enemy>)>,
-    ai_mines: Query<(), (With<crate::game::Mine>, With<Enemy>)>,
-    ai_steel_factories: Query<(), (With<crate::game::SteelFactory>, With<Enemy>)>,
-    ai_petrochemical_plants: Query<(), (With<crate::game::PetrochemicalPlant>, With<Enemy>)>,
+    // Объединенный запрос для всех AI юнитов
+    ai_units: Query<(
+        Option<&crate::game::Tank>,
+        Option<&crate::game::ShapeType>,
+        Option<&crate::game::Aircraft>,
+        Option<&crate::game::ForestFarm>,
+        Option<&crate::game::Mine>,
+        Option<&crate::game::SteelFactory>,
+        Option<&crate::game::PetrochemicalPlant>,
+    ), With<Enemy>>,
 ) {
     // ИИ покупает только в ход ИИ
     if turn_state.current_player != PlayerTurn::AI {
@@ -116,22 +119,31 @@ pub fn ai_purchase_system(
         LAST_PURCHASE_TIME = current_time;
     }
     
-    // Подсчет юнитов с лимитами
-    let ai_tank_count = ai_tanks.iter().count();
-    let ai_infantry_count = ai_infantry.iter().count();
-    let ai_aircraft_count = ai_aircraft.iter().count();
+    // Подсчет юнитов с лимитами используя объединенный Query
+    let mut ai_tank_count = 0;
+    let mut ai_infantry_count = 0;
+    let mut ai_aircraft_count = 0;
+    let mut ai_farm_count = 0;
+    let mut ai_mine_count = 0;
+    let mut ai_steel_factory_count = 0;
+    let mut ai_petrochemical_plant_count = 0;
+    
+    for (tank, infantry, aircraft, farm, mine, steel_factory, petrochemical_plant) in ai_units.iter() {
+        if tank.is_some() { ai_tank_count += 1; }
+        if infantry.is_some() { ai_infantry_count += 1; }
+        if aircraft.is_some() { ai_aircraft_count += 1; }
+        if farm.is_some() { ai_farm_count += 1; }
+        if mine.is_some() { ai_mine_count += 1; }
+        if steel_factory.is_some() { ai_steel_factory_count += 1; }
+        if petrochemical_plant.is_some() { ai_petrochemical_plant_count += 1; }
+    }
     
     // Проверяем лимиты для каждого типа юнитов
     let tank_limit_reached = ai_tank_count >= 3;
     let infantry_limit_reached = ai_infantry_count >= 3;
     let aircraft_limit_reached = ai_aircraft_count >= 3;
     
-
-    // Подсчет зданий ИИ с лимитами
-    let ai_mine_count = ai_mines.iter().count();
-    let ai_steel_factory_count = ai_steel_factories.iter().count();
-    let ai_petrochemical_plant_count = ai_petrochemical_plants.iter().count();
-    
+    let farm_limit_reached = ai_farm_count >= 2; // Разрешаем ИИ строить до 2 ферм
     let mine_limit_reached = ai_mine_count >= 1;
     let steel_factory_limit_reached = ai_steel_factory_count >= 1;
     let petrochemical_plant_limit_reached = ai_petrochemical_plant_count >= 1;
@@ -140,6 +152,9 @@ pub fn ai_purchase_system(
     let mut purchase_priorities = vec![];
     
     // ЗДАНИЯ ИМЕЮТ ВЫСШИЙ ПРИОРИТЕТ (только если не достигнут лимит и можем позволить)
+    if !farm_limit_reached && can_afford_item_ai(PurchasableItem::Farm, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
+        purchase_priorities.push((PurchasableItem::Farm, 11.0)); // Фермы имеют высший приоритет для экономики
+    }
     if !mine_limit_reached && can_afford_item_ai(PurchasableItem::Mine, &ai_money, &ai_wood, &ai_iron, &ai_steel, &ai_oil) {
         purchase_priorities.push((PurchasableItem::Mine, 10.0));
     }
@@ -177,11 +192,12 @@ pub fn ai_purchase_system(
             // Создаем юнит
             simple_spawn_ai_unit(*item, &mut commands, &asset_server, &time, &ai_faction);
             
-            info!("AI purchased {:?} with priority {:.2}. Counts: Infantry {}/3, Tanks {}/3, Aircraft {}/3, Mines {}/1, Factories {}/1, Plants {}/1", 
+            info!("AI purchased {:?} with priority {:.2}. Counts: Infantry {}/3, Tanks {}/3, Aircraft {}/3, Farms {}/2, Mines {}/1, Factories {}/1, Plants {}/1", 
                   item, priority, 
                   ai_infantry_count + if *item == PurchasableItem::Infantry { 1 } else { 0 },
                   ai_tank_count + if *item == PurchasableItem::Tank { 1 } else { 0 },
                   ai_aircraft_count + if *item == PurchasableItem::Airplane { 1 } else { 0 },
+                  ai_farm_count + if *item == PurchasableItem::Farm { 1 } else { 0 },
                   ai_mine_count + if *item == PurchasableItem::Mine { 1 } else { 0 },
                   ai_steel_factory_count + if *item == PurchasableItem::SteelFactory { 1 } else { 0 },
                   ai_petrochemical_plant_count + if *item == PurchasableItem::PetrochemicalPlant { 1 } else { 0 });
@@ -285,7 +301,7 @@ fn simple_spawn_ai_unit(
                 SceneBundle {
                     scene: asset_server.load(model_path),
                     transform: Transform::from_translation(spawn_pos)
-                        .with_scale(Vec3::splat(0.8)),
+                        .with_scale(Vec3::splat(1.0)),
                     ..default()
                 },
                 ShapeType::Infantry,
@@ -354,6 +370,26 @@ fn simple_spawn_ai_unit(
                 LockedAxes::all(),
                 PickableBundle::default(),
                 Name::new("AI Aircraft"),
+            ));
+        }
+        PurchasableItem::Farm => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/forest.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::ForestFarm,
+                crate::game::FarmIncomeRate(2.0), // Доход от фермы
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 80.0, max: 80.0 },
+                RigidBody::Fixed,
+                LockedAxes::all(),
+                Collider::cuboid(1.5, 1.0, 1.5),
+                PickableBundle::default(),
+                Name::new("AI Farm"),
             ));
         }
         PurchasableItem::Mine => {
@@ -582,6 +618,26 @@ fn spawn_ai_unit(
                 LockedAxes::all(), // Блокируем все движения
                 PickableBundle::default(),
                 Name::new("AI Aircraft"),
+            ));
+        }
+        PurchasableItem::Farm => {
+            commands.spawn((
+                SceneBundle {
+                    scene: asset_server.load("models/farm/forest.glb#Scene0"),
+                    transform: Transform::from_translation(spawn_pos)
+                        .with_scale(Vec3::splat(0.3)),
+                    ..default()
+                },
+                crate::game::ForestFarm,
+                crate::game::FarmIncomeRate(2.0), // Доход от фермы
+                crate::game::FarmActive(true),
+                crate::game::Enemy,
+                Health { current: 80.0, max: 80.0 },
+                RigidBody::Fixed,
+                LockedAxes::all(),
+                Collider::cuboid(1.5, 1.0, 1.5),
+                PickableBundle::default(),
+                Name::new("AI Farm"),
             ));
         }
         PurchasableItem::Mine => {

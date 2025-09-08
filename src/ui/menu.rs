@@ -14,16 +14,15 @@ use crate::UICamera;
 pub fn menu_plugin(app: &mut App) {
     app
         .init_state::<MenuState>()
-        .add_systems(OnEnter(GameState::Menu), (setup_ui_camera_for_menu, set_main_menu_state))
+        .add_systems(OnEnter(GameState::Menu), (setup_ui_camera_for_menu, set_main_menu_state, cleanup_game_ui))
         .add_plugins(main_menu_plugin)
         .add_plugins(settings_menu_plugin)
         .add_plugins(pause_menu_plugin)
         .add_systems(
             Update,
-            (menu_action, button_system).run_if(in_state(GameState::Menu)),
+            (menu_action, button_system, force_recreate_menu_if_empty).run_if(in_state(GameState::Menu)),
         )
-        // Temporarily disabled: .add_systems(OnEnter(GameState::Game), cleanup_all_menu_ui)
-        .add_systems(OnEnter(GameState::Menu), cleanup_game_ui)
+        .add_systems(OnEnter(GameState::Game), cleanup_all_menu_ui)
         .add_systems(OnExit(MenuState::Main), despawn_screen::<OnMainMenuScreen>)
         .add_systems(OnExit(MenuState::Settings), despawn_screen::<OnSettingsMenuScreen>)
         .add_systems(OnExit(MenuState::SettingsDisplay), despawn_screen::<OnDisplaySettingsMenuScreen>)
@@ -32,11 +31,16 @@ pub fn menu_plugin(app: &mut App) {
 
 fn cleanup_all_menu_ui(
     mut commands: Commands,
-    ui_elements: Query<Entity, With<Node>>,
+    all_menu_entities: Query<Entity, With<OnMainMenuScreen>>,
 ) {
-    println!("DEBUG: cleanup_all_menu_ui called - removing {} UI elements", ui_elements.iter().count());
-    for entity in ui_elements.iter() {
-        commands.entity(entity).despawn_recursive();
+    println!("DEBUG: cleanup_all_menu_ui called - removing {} menu entities", 
+             all_menu_entities.iter().count());
+    
+    // Remove ALL entities with OnMainMenuScreen component (including 3D world model, cameras, UI)
+    for entity in all_menu_entities.iter() {
+        if let Some(entity_commands) = commands.get_entity(entity) {
+            entity_commands.despawn_recursive();
+        }
     }
 }
 
@@ -65,12 +69,16 @@ fn setup_ui_camera_for_menu(
 
 fn cleanup_game_ui(
     mut commands: Commands,
-    game_ui_elements: Query<Entity, With<OnGameScreen>>,
+    all_game_entities: Query<Entity, With<crate::game_plugin::OnGameScreen>>,
 ) {
-    // Удаляем все элементы игрового UI при переходе в меню
-    println!("🧹 DEBUG: cleanup_game_ui called - removing {} game UI elements", game_ui_elements.iter().count());
-    for entity in game_ui_elements.iter() {
-        commands.entity(entity).despawn_recursive();
+    // Удаляем все элементы игры при переходе в меню
+    println!("🧹 DEBUG: cleanup_game_ui called - removing {} game entities", 
+             all_game_entities.iter().count());
+    
+    for entity in all_game_entities.iter() {
+        if let Some(entity_commands) = commands.get_entity(entity) {
+            entity_commands.despawn_recursive();
+        }
     }
 }
 
@@ -78,6 +86,26 @@ fn set_main_menu_state(mut menu_state: ResMut<NextState<MenuState>>) {
     // Устанавливаем MenuState::Main при переходе в GameState::Menu
     println!("🔥 DEBUG: Setting MenuState::Main from Game->Menu transition");
     menu_state.set(MenuState::Main);
+}
+
+// Force recreate menu system - runs every frame when in Menu state
+fn force_recreate_menu_if_empty(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    menu_entities: Query<Entity, With<OnMainMenuScreen>>,
+    game_state: Res<State<GameState>>,
+    menu_state: Res<State<MenuState>>,
+) {
+    // Only run when in Menu state and Main menu state
+    if *game_state.get() != GameState::Menu || *menu_state.get() != MenuState::Main {
+        return;
+    }
+    
+    // If no menu entities exist, recreate the menu
+    if menu_entities.is_empty() {
+        println!("🚨 DEBUG: Menu is empty, force recreating...");
+        crate::menu::main_menu::main_menu_setup(commands, asset_server, menu_entities);
+    }
 }
 
 pub fn button_system(

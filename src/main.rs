@@ -78,7 +78,7 @@ fn main() {
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
-        .add_systems(Startup, (setup_ui_camera, setup_particle_effect))
+        .add_systems(Startup, setup_ui_camera)
         .add_systems(Update, fps_limiter_system)
         .add_systems(
             Update,
@@ -140,7 +140,6 @@ fn main() {
             (
                 tower::repair_tower,
                 tower::update_tower_health_status,
-                tower::spawn_tower_on_keystroke,
             )
                 .run_if(in_state(GameState::Game)),
         )
@@ -175,13 +174,15 @@ fn main() {
             OnEnter(GameState::Game),
             systems::ai_economy::ai_initial_resources_system,
         )
-        .add_systems(OnExit(GameState::Game), (reset_placement_state, reset_game_state))
+        .add_systems(OnExit(GameState::Game), (reset_placement_state, reset_game_state, cleanup_ui_camera))
+        .add_systems(OnEnter(GameState::Game), menu::main_menu::cleanup_menu_cameras)
         .add_plugins((
             splash_plugin,
             menu_plugin,
             game::game_plugin,
             ui::money_ui::MoneyUiPlugin,
             ui::ui_plugin,
+            systems::enemy_visual_markers::EnemyVisualMarkersPlugin,
         ))
         .run();
 }
@@ -261,6 +262,13 @@ fn fps_limiter_system(mut fps_limiter: ResMut<FpsLimiter>) {
     }
     
     fps_limiter.last_frame_time = std::time::Instant::now();
+}
+
+fn cleanup_ui_camera(mut commands: Commands, ui_cameras: Query<Entity, With<UICamera>>) {
+    // Remove all existing UI cameras to prevent conflicts
+    for entity in ui_cameras.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
 
 pub mod game_plugin {

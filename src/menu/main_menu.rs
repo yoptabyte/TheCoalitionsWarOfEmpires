@@ -45,7 +45,19 @@ pub fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>) {
     menu_state.set(MenuState::Main);
 }
 
-pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn main_menu_setup(
+    mut commands: Commands, 
+    asset_server: Res<AssetServer>,
+    existing_menu_query: Query<Entity, With<OnMainMenuScreen>>,
+) {
+    // Always clean up existing menu elements first
+    for entity in existing_menu_query.iter() {
+        if let Some(entity_commands) = commands.get_entity(entity) {
+            entity_commands.despawn_recursive();
+        }
+    }
+    
+    println!("🎮 DEBUG: Setting up main menu...");
     let world_model = asset_server.load("textures/WorldWar.glb#Scene0");
     let logo = asset_server.load("pic/logo.png");
 
@@ -111,8 +123,8 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_xyz(0.0, 10.0, 25.0)
                 .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
             camera: Camera {
-                // 3D cameras render in background
-                order: -1,
+                // Menu camera has different priority than game camera
+                order: -2,
                 ..default()
             },
             ..default()
@@ -189,7 +201,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             justify_content: JustifyContent::Center,
                             ..default()
                         },
-                        background_color: Color::rgba(1.0, 0.0, 0.0, 0.3).into(), // Red debug background
+                        background_color: Color::NONE.into(), // Transparent background
                         ..default()
                     },
                     LogoContainer,
@@ -220,7 +232,7 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             top: Val::Vh(50.0),
                             ..default()
                         },
-                        background_color: Color::rgba(0.0, 1.0, 0.0, 0.3).into(), // Green debug background
+                        background_color: Color::NONE.into(), // Transparent background
                         ..default()
                     },
                     ButtonContainer,
@@ -307,6 +319,14 @@ pub fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 pub fn despawn_main_menu(mut commands: Commands, query: Query<Entity, With<OnMainMenuScreen>>) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
+    }
+}
+
+// Additional cleanup function to ensure all menu cameras are removed
+pub fn cleanup_menu_cameras(mut commands: Commands, menu_cameras: Query<Entity, With<MenuCamera>>) {
+    for entity in menu_cameras.iter() {
+        commands.entity(entity).despawn_recursive();
+        println!("🧹 Cleaned up menu camera entity: {:?}", entity);
     }
 }
 
@@ -625,6 +645,7 @@ pub fn main_menu_plugin(app: &mut App) {
             timer: Timer::from_seconds(2.0, TimerMode::Once),
         })
         .add_systems(OnEnter(MenuState::Main), main_menu_setup)
+        .add_systems(OnEnter(crate::menu::common::GameState::Menu), main_menu_setup) // Add this to ensure menu is recreated when returning from game
         .add_systems(
             Update,
             (menu_action, button_system).run_if(in_state(MenuState::Main)),
