@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::ui::money_ui::{Money, Wood, Iron, Steel, Oil};
 use crate::systems::turn_system::TurnState;
-use crate::systems::victory_system::VictoryState;
+use crate::systems::victory_system::{VictoryState, TwitterConfig};
 use crate::game::{EnemyTower, Health, Tower};
 use crate::menu::common::GameState;
 
@@ -20,6 +20,7 @@ pub fn handle_cheat_keys(
     mut game_state: ResMut<NextState<GameState>>,
     mut player_towers: Query<&mut Health, (With<Tower>, Without<EnemyTower>)>,
     mut enemy_towers: Query<&mut Health, (With<Tower>, With<EnemyTower>)>,
+    twitter_config: Res<TwitterConfig>,
 ) {
     // Cheat: D - Force defeat
     if keyboard_input.just_pressed(KeyCode::KeyD) {
@@ -73,6 +74,24 @@ pub fn handle_cheat_keys(
         turn_state.time_left += 10.0;
         
         println!("⏰ Added 10 seconds to current turn! Time left: {:.1}s", turn_state.time_left);
+    }
+
+    // Cheat: P - Test Twitter post
+    if keyboard_input.just_pressed(KeyCode::KeyP) {
+        println!("🔧 CHEAT: Testing Twitter post!");
+        
+        if twitter_config.enabled {
+            if let Some(ref client) = twitter_config.client {
+                match client.test_twitter_integration_blocking() {
+                    Ok(_) => println!("✅ Test tweet posted successfully!"),
+                    Err(e) => eprintln!("❌ Failed to post test tweet: {}", e),
+                }
+            } else {
+                println!("❌ Twitter client not configured");
+            }
+        } else {
+            println!("❌ Twitter integration disabled");
+        }
     }
 }
 

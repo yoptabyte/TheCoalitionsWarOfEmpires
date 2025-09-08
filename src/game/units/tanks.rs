@@ -164,12 +164,33 @@ pub fn spawn_tank(
     // Get stats for this tank type
     let stats = tank_type.get_stats();
 
+    // Get scale factor based on tank type for consistent scaling
+    let scale = match tank_type {
+        TankType::Entente(entente_type) => {
+            match entente_type {
+                EntenteTankType::TsarTank => 0.05, // Возвращаем исходный размер для tsar tank
+                EntenteTankType::Mark1 => 0.08,    // Возвращаем исходный размер для mark1
+                EntenteTankType::RenaultFT => 0.4, // Normal size
+            }
+        },
+        TankType::CentralPowers(central_type) => {
+            match central_type {
+                CentralPowersTankType::AustroDaimlerPanzerwagen => 0.4,
+                CentralPowersTankType::A7V => 0.4,
+                CentralPowersTankType::OttomanTank => 0.4,
+            }
+        },
+    };
+
+    // Calculate proportional collider size with minimum for clickability  
+    let collider_scale = (8.0_f32 * scale).max(5.0);
+
     // Spawn the tank entity
     commands.spawn((
         SceneBundle {
             scene: asset_server.load(model_path),
             transform: Transform::from_translation(position)
-                .with_scale(Vec3::splat(0.4)),
+                .with_scale(Vec3::splat(scale)),
             ..default()
         },
         TankMarker,
@@ -192,7 +213,8 @@ pub fn spawn_tank(
         HoveredOutline,
         RigidBody::Dynamic,
         LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
-        Collider::cuboid(0.8, 0.6, 1.2),
+        // Proportional collider based on model scale
+        Collider::cuboid(collider_scale, collider_scale * 0.75, collider_scale * 1.5),
         PickableBundle::default(),
         On::<Pointer<Over>>::run(|mut commands: Commands, event: Listener<Pointer<Over>>| {
             commands.entity(event.target).insert(HoveredOutline);

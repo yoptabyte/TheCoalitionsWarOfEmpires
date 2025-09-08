@@ -1187,8 +1187,8 @@ pub fn place_shape(
             let (model_path, scale) = match player_faction.0 {
                 Faction::Entente => {
                     match tank_type_index {
-                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.05), // tsar_tank уменьшен в 8 раз (в 2 раза меньше чем было)
-                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 уменьшен в 5 раз
+                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.05), // tsar_tank возвращаем исходный размер
+                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 возвращаем исходный размер
                         _ => ("models/entente/tanks/renault_ft17.glb#Scene0", 0.4), // renault остается нормальным
                     }
                 },
@@ -1201,8 +1201,8 @@ pub fn place_shape(
                 },
             };
             
-            // Адаптируем размер коллайдера под масштаб модели, но с минимальным размером
-            let collider_size = (5.0_f32 * scale).max(1.5); // Минимум 1.5 для кликабельности
+            // Адаптируем размер коллайдера под масштаб модели, но с гарантированно большим минимумом для кликабельности
+            let collider_size = (8.0_f32 * scale).max(5.0); // Гарантированно большой коллайдер для кликабельности
             
             info!("🔥 TANK: Loading model from path: {} with scale: {}", model_path, scale);
             let entity_id = commands.spawn((

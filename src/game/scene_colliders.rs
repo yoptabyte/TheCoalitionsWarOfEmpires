@@ -386,8 +386,8 @@ fn create_mesh_based_collider(mesh_handle: &Handle<Mesh>, meshes: &Assets<Mesh>)
 fn create_oversized_collider_for_unit(unit_type: &str) -> Collider {
     match unit_type {
         "tank" => {
-            info!("🚗 Создаю ОГРОМНЫЙ коллайдер для танка");
-            Collider::cuboid(4.0, 4.0, 5.0) // Очень большой коллайдер для танка
+            info!("🚗 Создаю СУПЕР-ОГРОМНЫЙ коллайдер для танка (для mark1/tsar_tank)");
+            Collider::cuboid(8.0, 8.0, 10.0) // СУПЕР-ОГРОМНЫЙ коллайдер для танков с множеством дочерних элементов
         },
         "aircraft" => {
             info!("✈️ Создаю ОГРОМНЫЙ коллайдер для самолета");
@@ -457,26 +457,26 @@ pub fn add_precise_player_unit_colliders(
 ) {
     // Обработка танков игрока
     for (tank_entity, children) in tank_query.iter() {
-        info!("🚗 Обрабатываю танк игрока {} с точными коллайдерами", tank_entity.index());
+        info!("🚗 Обрабатываю танк игрока {} с точными коллайдерами - всего детей: {}", 
+              tank_entity.index(), children.len());
         
         for &child in children.iter() {
             if child_query.get(child).is_ok() {
                 continue;
             }
             
-            if let Ok((_, mesh_handle)) = mesh_query.get(child) {
-                info!("📐 Создаю ОГРОМНЫЙ коллайдер для меша танка {}", child.index());
-                
-                let collider = create_oversized_collider_for_unit("tank");
-                
-                commands.entity(child).insert((
-                    collider,
-                    PickableBundle::default(),
-                    Sensor,
-                    ChildOfClickable { parent: tank_entity },
-                    crate::game::Selectable, // Добавляем Selectable для raycast
-                ));
-            }
+            // Добавляем коллайдер ВСЕМ дочерним элементам, не только mesh-элементам
+            info!("📐 Создаю СУПЕР-ОГРОМНЫЙ коллайдер для дочернего элемента танка {}", child.index());
+            
+            let collider = create_oversized_collider_for_unit("tank");
+            
+            commands.entity(child).insert((
+                collider,
+                PickableBundle::default(),
+                Sensor,
+                ChildOfClickable { parent: tank_entity },
+                crate::game::Selectable, // Добавляем Selectable для raycast
+            ));
         }
     }
     

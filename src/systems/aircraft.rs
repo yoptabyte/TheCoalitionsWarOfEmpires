@@ -3,10 +3,20 @@ use bevy_rapier3d::prelude::*;
 use bevy_mod_picking::prelude::*;
 use crate::game::components::{Aircraft, MovementOrder, Selectable, CanShoot};
 
+/// Marker component for aircraft that are currently playing movement sound
+#[derive(Component)]
+pub struct MovingAircraft;
+
+/// Marker component for aircraft movement audio entities
+#[derive(Component)]
+pub struct AircraftMovementAudio;
+
 pub fn aircraft_movement(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &Aircraft, &MovementOrder)>,
+    moving_aircraft_query: Query<Entity, With<MovingAircraft>>,
 ) {
     for (entity, mut transform, aircraft, movement_order) in query.iter_mut() {
         let target_position = movement_order.0;
@@ -23,14 +33,29 @@ pub fn aircraft_movement(
         
         // Check if we've reached the target (within 1.0 unit distance)
         if direction_xz.length_squared() <= 1.0 {
-            // Reached target, remove movement order
+            // Reached target, remove movement order and stop sound
             commands.entity(entity).remove::<MovementOrder>();
+            commands.entity(entity).remove::<MovingAircraft>();
             info!("Aircraft {:?} reached target at {:?}", entity, target_position);
             continue;
         }
         
         // Only proceed with movement and rotation if we have a valid direction
         if direction_xz.length_squared() > 0.01 {
+            // Воспроизводим звук движения самолета (только раз за движение)
+            if moving_aircraft_query.get(entity).is_err() {
+                // Добавляем звук и компонент движения (пока без spatial audio)
+                commands.spawn((
+                    AudioBundle {
+                        source: asset_server.load("audio/aircraft.mp3"),
+                        settings: PlaybackSettings::LOOP,
+                    },
+                    AircraftMovementAudio,
+                ));
+                commands.entity(entity).insert(MovingAircraft);
+                info!("✈️ Aircraft movement sound started");
+            }
+            
             // Normalize direction for movement
             let normalized_direction = direction_xz.normalize();
             
@@ -44,6 +69,21 @@ pub fn aircraft_movement(
             // Rotate the aircraft to face the movement direction
             let rotation = Quat::from_rotation_y(normalized_direction.x.atan2(normalized_direction.z));
             transform.rotation = rotation;
+        }
+    }
+}
+
+/// System to stop aircraft movement audio when aircraft are no longer moving
+pub fn cleanup_aircraft_movement_audio(
+    mut commands: Commands,
+    aircraft_audio_query: Query<Entity, With<AircraftMovementAudio>>,
+    moving_aircraft_query: Query<Entity, With<MovingAircraft>>,
+) {
+    // If no aircraft are currently moving, remove all aircraft movement audio
+    if moving_aircraft_query.is_empty() {
+        for audio_entity in aircraft_audio_query.iter() {
+            commands.entity(audio_entity).despawn();
+            info!("🔇 Aircraft movement sound stopped - no moving aircraft");
         }
     }
 }

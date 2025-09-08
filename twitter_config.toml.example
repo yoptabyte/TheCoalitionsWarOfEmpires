@@ -1,0 +1,23 @@
+# Twitter API Configuration Template
+# Copy this file to twitter_config.toml and fill in your actual API credentials
+
+[twitter]
+# Enable or disable Twitter integration
+enabled = true
+# Your API Key (Consumer Key) from Twitter Developer Portal
+consumer_key = "ZKm3KiqVGcrMQppACkryZJwgP"
+
+# Your API Key Secret (Consumer Secret) from Twitter Developer Portal  
+consumer_secret = "EQwdgrZbQSvp8PR9gx39nn6X7SLwwzwt1AEBkNi..."
+
+# Your Access Token from Twitter Developer Portal
+access_token = "1933574069820997632-x6aPCtSG2nNUk4jJgXehkSwrXE4k8p"
+
+# Your Access Token Secret from Twitter Developer Portal
+access_token_secret = "CSZDK1lvQwLBwD77G4IOlyBwjZKTcRjxO3GDcCC..."
+
+# IMPORTANT SECURITY NOTES:
+# 1. Never commit twitter_config.toml to version control
+# 2. Keep these credentials secure and private
+# 3. Regenerate them if they become compromised
+# 4. Store them in a secure location like environment variables in production

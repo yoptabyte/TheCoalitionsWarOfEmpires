@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 use bevy::gizmos::gizmos::Gizmos;
-use crate::game::components::{Farm, ForestFarm, FarmActive, FarmIncomeRate, Selectable, HoveredOutline, ShapeType};
+use crate::game::components::{Farm, ForestFarm, FarmActive, FarmIncomeRate, Selectable, HoveredOutline, ShapeType, Health};
 use crate::game::resources::FarmIncomeTimer;
 use crate::ui::money_ui::Money;
 
@@ -179,6 +179,7 @@ pub fn spawn_forest_farm(
         ForestFarm,
         FarmActive(true),
         FarmIncomeRate(10.0),
+        Health { current: 120.0, max: 120.0 },
         PickableBundle::default(),
         bevy_rapier3d::prelude::RigidBody::Fixed,
         bevy_rapier3d::prelude::Collider::cuboid(1.0, 0.5, 1.0),
@@ -213,7 +214,8 @@ pub fn spawn_active_forest_farm(
         Farm,
         ForestFarm,
         FarmActive(true),
-        FarmIncomeRate(10.0), 
+        FarmIncomeRate(10.0),
+        Health { current: 120.0, max: 120.0 },
         PickableBundle::default(),
         bevy_rapier3d::prelude::RigidBody::Fixed,
         bevy_rapier3d::prelude::Collider::cuboid(1.0, 0.5, 1.0),

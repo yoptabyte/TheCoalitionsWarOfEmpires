@@ -7,14 +7,13 @@ use crate::menu::{
     pause_menu::pause_menu_plugin,
 };
 
-use crate::game_plugin::OnGameScreen;
-
-use crate::UICamera;
+use crate::ui::UICamera;
 
 pub fn menu_plugin(app: &mut App) {
     app
         .init_state::<MenuState>()
-        .add_systems(OnEnter(GameState::Menu), (setup_ui_camera_for_menu, set_main_menu_state, cleanup_game_ui))
+        .add_systems(OnEnter(GameState::Menu), (setup_ui_camera_for_menu, set_main_menu_state).chain())
+        .add_systems(OnEnter(GameState::Menu), (cleanup_game_entities, reset_game_resources, reset_game_state))
         .add_plugins(main_menu_plugin)
         .add_plugins(settings_menu_plugin)
         .add_plugins(pause_menu_plugin)
@@ -67,19 +66,131 @@ fn setup_ui_camera_for_menu(
     ));
 }
 
-fn cleanup_game_ui(
+fn cleanup_game_entities(
     mut commands: Commands,
     all_game_entities: Query<Entity, With<crate::game_plugin::OnGameScreen>>,
+    // Cleanup all audio entities
+    tank_audio_query: Query<Entity, With<crate::systems::movement::TankMovementAudio>>,
+    aircraft_audio_query: Query<Entity, With<crate::systems::aircraft::AircraftMovementAudio>>,
+    // Cleanup all other audio entities (victory, defeat, combat sounds, etc.)
+    victory_audio_query: Query<Entity, With<crate::systems::victory_system::VictoryAudio>>,
+    defeat_audio_query: Query<Entity, With<crate::systems::victory_system::DefeatAudio>>,
+    // Cleanup all other game-related audio
+    all_audio_query: Query<Entity, (With<AudioSink>, Without<crate::menu::main_menu::BackgroundMusic>)>,
 ) {
-    // Удаляем все элементы игры при переходе в меню
-    println!("🧹 DEBUG: cleanup_game_ui called - removing {} game entities", 
+    println!("🧹 DEBUG: cleanup_game_entities called - removing {} game entities", 
              all_game_entities.iter().count());
     
+    // Remove ALL game entities
     for entity in all_game_entities.iter() {
         if let Some(entity_commands) = commands.get_entity(entity) {
             entity_commands.despawn_recursive();
         }
     }
+    
+    // Remove ALL movement audio
+    for audio_entity in tank_audio_query.iter() {
+        commands.entity(audio_entity).despawn();
+        info!("🔇 Cleaned up tank movement audio");
+    }
+    
+    for audio_entity in aircraft_audio_query.iter() {
+        commands.entity(audio_entity).despawn();
+        info!("🔇 Cleaned up aircraft movement audio");
+    }
+    
+    // Remove victory/defeat audio
+    for audio_entity in victory_audio_query.iter() {
+        commands.entity(audio_entity).despawn();
+        info!("🔇 Cleaned up victory audio");
+    }
+    
+    for audio_entity in defeat_audio_query.iter() {
+        commands.entity(audio_entity).despawn();
+        info!("🔇 Cleaned up defeat audio");
+    }
+    
+    // Remove ALL other audio except menu background music
+    for audio_entity in all_audio_query.iter() {
+        commands.entity(audio_entity).despawn();
+        info!("🔇 Cleaned up game audio");
+    }
+    
+    println!("🔇 DEBUG: All game audio and entities completely cleaned up");
+}
+
+fn reset_game_resources(
+    // Игрок ресурсы
+    mut money: ResMut<crate::ui::money_ui::Money>,
+    mut wood: ResMut<crate::ui::money_ui::Wood>,
+    mut steel: ResMut<crate::ui::money_ui::Steel>,
+    mut oil: ResMut<crate::ui::money_ui::Oil>,
+    // ИИ ресурсы 
+    mut ai_money: ResMut<crate::ui::money_ui::AIMoney>,
+    mut ai_wood: ResMut<crate::ui::money_ui::AIWood>,
+    mut ai_steel: ResMut<crate::ui::money_ui::AISteel>,
+    mut ai_oil: ResMut<crate::ui::money_ui::AIOil>,
+) {
+    // Сбрасываем все игровые ресурсы игрока к начальным значениям
+    money.0 = 100.0;
+    wood.0 = 50.0;
+    steel.0 = 30.0;
+    oil.0 = 20.0;
+    
+    // Сбрасываем все ресурсы ИИ к начальным значениям
+    ai_money.0 = 100.0;
+    ai_wood.0 = 50.0;
+    ai_steel.0 = 30.0;
+    ai_oil.0 = 20.0;
+    
+    println!("💰 DEBUG: All player and AI resources reset to starting values");
+}
+
+fn reset_game_state(
+    // Состояние игры
+    mut turn_state: ResMut<crate::systems::turn_system::TurnState>,
+    mut victory_state: ResMut<crate::systems::victory_system::VictoryState>,
+    mut selected_entity: ResMut<crate::game::SelectedEntity>,
+    // Состояние размещения
+    mut placement_state: ResMut<crate::game::PlacementState>,
+    // Другие ресурсы которые могли быть изменены
+    mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
+    mut processed_clicks: ResMut<crate::input::selection::ProcessedClicks>,
+    mut click_circle: ResMut<crate::game::ClickCircle>,
+    mut notification_state: ResMut<crate::ui::notification_system::NotificationState>,
+) {
+    // Сбрасываем состояние игры
+    turn_state.turn_number = 1;
+    turn_state.time_left = 20.0;
+    turn_state.current_player = crate::systems::turn_system::PlayerTurn::Human;
+    
+    // Сбрасываем состояние победы
+    victory_state.victory_timer = None;
+    victory_state.defeat_timer = None;
+    victory_state.game_ended = false;
+    
+    // Сбрасываем выделенный юнит
+    selected_entity.0 = None;
+    
+    // Сбрасываем состояние размещения
+    placement_state.active = false;
+    placement_state.shape_type = None;
+    placement_state.unit_type_index = None;
+    
+    // Сбрасываем состояние камеры
+    camera_movement_state.manual_camera_mode = false;
+    
+    // Очищаем обработанные клики
+    processed_clicks.processed_ids.clear();
+    
+    // Сбрасываем клик-сферу
+    click_circle.position = None;
+    click_circle.spawn_time = None;
+    
+    // Полностью сбрасываем состояние уведомлений
+    *notification_state = crate::ui::notification_system::NotificationState::default();
+    
+    println!("🔄 DEBUG: All game states fully reset for new game");
 }
 
 fn set_main_menu_state(mut menu_state: ResMut<NextState<MenuState>>) {

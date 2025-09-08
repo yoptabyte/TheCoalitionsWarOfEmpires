@@ -6,3 +6,6 @@
 
 # VSCode
 .vscode
+
+# Twitter API credentials
+twitter_config.toml

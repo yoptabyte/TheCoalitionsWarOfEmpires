@@ -1,25 +1,36 @@
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
-use crate::game::{SelectedEntity, Enemy, Health, CanShoot, EnemyTower, ShapeType, Mine, SteelFactory, PetrochemicalPlant, LinkedToEnemy};
+use crate::game::{SelectedEntity, Enemy, Health, CanShoot, EnemyTower, ShapeType, Mine, SteelFactory, PetrochemicalPlant, LinkedToEnemy, Tank, Aircraft};
+use crate::game::units::infantry::Infantry;
 use crate::systems::turn_system::{TurnState, PlayerTurn};
+
 
 /// system for processing clicks on attackable objects (enemies or towers) with instant hit
 pub fn handle_attacks(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut click_events: EventReader<Pointer<Click>>,
     selected_entity: Res<SelectedEntity>,
-    query_enemy: Query<Entity, With<Enemy>>,
-    query_enemy_tower: Query<Entity, With<EnemyTower>>,
-    // Buildings that can be attacked (but not forests)
-    query_enemy_mine: Query<Entity, (With<Mine>, With<Enemy>)>,
-    query_enemy_steel_factory: Query<Entity, (With<SteelFactory>, With<Enemy>)>,
-    query_enemy_petro_plant: Query<Entity, (With<PetrochemicalPlant>, With<Enemy>)>,
+    // Combined query for all enemy entities
+    query_enemies: Query<Entity, Or<(
+        With<Enemy>,
+        With<EnemyTower>,
+        (With<Mine>, With<Enemy>),
+        (With<SteelFactory>, With<Enemy>),
+        (With<PetrochemicalPlant>, With<Enemy>)
+    )>>,
     child_query: Query<&crate::game::scene_colliders::ChildOfClickable>,
     collider_query: Query<&LinkedToEnemy>,
     transform_query: Query<&Transform>,
     can_shoot_query: Query<&CanShoot>,
     mut health_query: Query<&mut Health>,
+    // Combined query for unit types
+    unit_type_query: Query<(
+        Option<&Tank>, 
+        Option<&Aircraft>, 
+        Option<&Infantry>
+    )>,
     time: Res<Time>,
     turn_state: Res<TurnState>,
 ) {
@@ -41,21 +52,9 @@ pub fn handle_attacks(
         }
         
         // Check direct targets first
-        let is_enemy = query_enemy.get(event.target).is_ok();
-        let is_enemy_tower = query_enemy_tower.get(event.target).is_ok();
-        let is_enemy_mine = query_enemy_mine.get(event.target).is_ok();
-        let is_enemy_steel_factory = query_enemy_steel_factory.get(event.target).is_ok();
-        let is_enemy_petro_plant = query_enemy_petro_plant.get(event.target).is_ok();
+        let is_valid_enemy = query_enemies.get(event.target).is_ok();
         
-        info!("Target checks: enemy={}, tower={}, mine={}, factory={}, petro={}", 
-              is_enemy, is_enemy_tower, is_enemy_mine, is_enemy_steel_factory, is_enemy_petro_plant);
-        
-        // Дополнительная отладка для башен
-        if let Ok(_) = query_enemy_tower.get(event.target) {
-            info!("✅ Entity {:?} HAS EnemyTower component!", event.target);
-        } else {
-            info!("❌ Entity {:?} does NOT have EnemyTower component", event.target);
-        }
+        info!("Target check: is_valid_enemy={}", is_valid_enemy);
         
         // Обрабатываем клики по дочерним элементам 3D моделей
         let mut target_entity = event.target;
@@ -67,15 +66,8 @@ pub fn handle_attacks(
             info!("✅ Click on mesh child detected, redirecting to parent entity {}", child_of_clickable.parent.index());
             target_entity = child_of_clickable.parent;
             // Перепроверяем компоненты для родительского entity
-            let parent_is_enemy = query_enemy.get(target_entity).is_ok();
-            let parent_is_enemy_tower = query_enemy_tower.get(target_entity).is_ok();
-            let parent_is_enemy_mine = query_enemy_mine.get(target_entity).is_ok();
-            let parent_is_enemy_steel_factory = query_enemy_steel_factory.get(target_entity).is_ok();
-            let parent_is_enemy_petro_plant = query_enemy_petro_plant.get(target_entity).is_ok();
-            
-            is_child_of_enemy = parent_is_enemy || parent_is_enemy_tower || parent_is_enemy_mine || parent_is_enemy_steel_factory || parent_is_enemy_petro_plant;
-            info!("Parent entity checks: enemy={}, tower={}, mine={}, factory={}, petro={}, is_child_of_enemy={}", 
-                  parent_is_enemy, parent_is_enemy_tower, parent_is_enemy_mine, parent_is_enemy_steel_factory, parent_is_enemy_petro_plant, is_child_of_enemy);
+            is_child_of_enemy = query_enemies.get(target_entity).is_ok();
+            info!("Parent entity check: is_child_of_enemy={}", is_child_of_enemy);
         }
         
         // Проверяем LinkedToEnemy компонент
@@ -85,7 +77,7 @@ pub fn handle_attacks(
             is_click_collider = true;
         }
         
-        let is_valid_target = is_enemy || is_enemy_tower || is_enemy_mine || is_enemy_steel_factory || is_enemy_petro_plant || is_child_of_enemy || is_click_collider;
+        let is_valid_target = is_valid_enemy || is_child_of_enemy || is_click_collider;
         
         info!("handle_attacks: Click on entity {:?}, is_valid_target: {}", event.target, is_valid_target);
         
@@ -112,6 +104,24 @@ pub fn handle_attacks(
                                     let old_health = health.current;
                                     health.current -= can_shoot.damage;
                                     info!("handle_attacks: Damage applied! Health: {} -> {}", old_health, health.current);
+                                    
+                                    // Воспроизводим звук стрельбы
+                                    let (tank_opt, aircraft_opt, infantry_opt) = unit_type_query.get(selected_entity.0.unwrap()).unwrap_or((None, None, None));
+                                    let audio_source = if tank_opt.is_some() {
+                                        asset_server.load("audio/tank_shot.mp3")
+                                    } else if aircraft_opt.is_some() {
+                                        asset_server.load("audio/aircraft_gun.mp3")  
+                                    } else if infantry_opt.is_some() {
+                                        asset_server.load("audio/infantry_shot.ogg")
+                                    } else {
+                                        asset_server.load("audio/gun.mp3")
+                                    };
+
+                                    info!("🔫 Playing shooting sound from unit at {:?}", shooter_transform.translation);
+                                    commands.spawn(AudioBundle {
+                                        source: audio_source,
+                                        settings: PlaybackSettings::ONCE,
+                                    });
                                     
                                     if health.current <= 0.0 {
                                         info!("handle_attacks: Enemy destroyed!");

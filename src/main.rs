@@ -6,6 +6,7 @@ use bevy_rapier3d::prelude::*;
 
 
 mod game;
+mod game_plugin;
 mod input;
 mod menu;
 mod systems;
@@ -75,6 +76,11 @@ fn main() {
         .init_resource::<ui::money_ui::AISteel>()
         .init_resource::<ui::money_ui::AIOil>()
         .init_resource::<systems::victory_system::VictoryState>()
+        .init_resource::<systems::victory_system::TwitterConfig>()
+        .init_resource::<game::resources::PlacementState>()
+        .init_resource::<game::units::PlayerFaction>()
+        .init_resource::<game::units::AIFaction>()
+        .init_resource::<ui::notification_system::NotificationState>()
         .insert_resource(DisplayQuality::Medium)
         .insert_resource(Volume(7))
         .init_state::<GameState>()
@@ -92,8 +98,10 @@ fn main() {
             Update,
             (
                 process_movement_orders,
+                systems::movement::cleanup_tank_movement_audio,
                 ui::health_bars::draw_health_bars,
                 aircraft_movement,
+                systems::aircraft::cleanup_aircraft_movement_audio,
                 systems::combat::handle_trench_damage,
             )
                 .run_if(in_state(GameState::Game)),
@@ -179,7 +187,7 @@ fn main() {
         .add_plugins((
             splash_plugin,
             menu_plugin,
-            game::game_plugin,
+            game_plugin::game_plugin,
             ui::money_ui::MoneyUiPlugin,
             ui::ui_plugin,
             systems::enemy_visual_markers::EnemyVisualMarkersPlugin,
@@ -238,7 +246,7 @@ fn reset_game_state(
     
     // Reset turn state
     turn_state.current_player = systems::turn_system::PlayerTurn::Human;
-    turn_state.time_left = 30.0; // TURN_DURATION
+    turn_state.time_left = 20.0; // TURN_DURATION
     turn_state.turn_number = 1;
     
     // Reset victory state
@@ -271,31 +279,4 @@ fn cleanup_ui_camera(mut commands: Commands, ui_cameras: Query<Entity, With<UICa
     }
 }
 
-pub mod game_plugin {
-    use crate::{
-        menu::common::{despawn_screen, GameState},
-        systems::aircraft::spawn_initial_aircraft,
-    };
-    use bevy::prelude::*;
 
-    #[derive(Component)]
-    pub struct OnGameScreen;
-
-    #[derive(Resource, Deref, DerefMut)]
-    #[allow(dead_code)]
-    struct GameTimer(Timer);
-
-    pub fn game_plugin(app: &mut App) {
-        app.add_systems(
-            OnEnter(GameState::Game),
-            spawn_initial_aircraft,
-        )
-        .add_systems(Update, game_system.run_if(in_state(GameState::Game)))
-        .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
-    }
-
-
-    fn game_system() {
-        todo!("Game logic");
-    }
-}

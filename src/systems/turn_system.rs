@@ -23,7 +23,7 @@ impl Default for TurnState {
     }
 }
 
-const TURN_DURATION: f32 = 30.0;
+const TURN_DURATION: f32 = 20.0;
 
 pub fn update_turn_system(
     mut turn_state: ResMut<TurnState>,

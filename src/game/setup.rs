@@ -16,6 +16,7 @@ pub fn setup(
     // Add query to clean up any existing cameras
     existing_cameras: Query<Entity, With<Camera>>,
 ) {
+    println!("🚀 SETUP SYSTEM STARTED! Player faction: {:?}, AI faction: {:?}", player_faction.0, ai_faction.0);
     // Clean up any existing cameras to prevent conflicts
     for camera_entity in existing_cameras.iter() {
         if let Some(entity_commands) = commands.get_entity(camera_entity) {
@@ -35,6 +36,7 @@ pub fn setup(
 
 
     let plane_mesh = meshes.add(Plane3d::default().mesh().size(120.0, 120.0));
+    println!("🌍 Creating ground plane with size 120x120");
     commands.spawn((
         PbrBundle {
             mesh: plane_mesh.clone(),
@@ -46,6 +48,7 @@ pub fn setup(
     ));
 
     // Main point light - much brighter
+    println!("💡 Creating point light at (4.0, 15.0, 4.0) with intensity 2000.0");
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             intensity: 2000.0,
@@ -57,6 +60,7 @@ pub fn setup(
     });
 
     // Additional ambient lighting
+    println!("🌞 Creating directional light with illuminance 1500.0");
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 1500.0,
@@ -68,12 +72,13 @@ pub fn setup(
     });
 
     // camera - positioned to look at the battlefield center, not at Vec3::ZERO
+    println!("📷 Creating main camera at (-2.5, 15.0, 20.0) looking at (0.0, 0.0, 0.0)");
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(-2.5, 15.0, 20.0).looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             camera: Camera {
-                // 3D cameras render in background
-                order: -1,
+                // 3D cameras render first, UI cameras render on top
+                order: 0,
                 clear_color: ClearColorConfig::Custom(Color::rgb(0.1, 0.2, 0.3)), // Dark blue sky
                 ..default()
             },
@@ -172,6 +177,8 @@ pub fn spawn_faction_towers(
     for (i, position) in positions.iter().enumerate() {
         let tower_scene = asset_server.load(tower_models[i]);
         let tower_scale = tower_scales[i];
+        
+        println!("🏰 Loading tower model: {} at position {:?} with scale {}", tower_models[i], position, tower_scale);
         
         let tower_bundle = (
             SceneBundle {

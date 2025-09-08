@@ -8,6 +8,7 @@ pub mod ai_opponent;
 pub mod victory_system;
 pub mod cheat_system;
 pub mod enemy_visual_markers;
+pub mod twitter_client;
 
 pub use aircraft::*;
 #[allow(unused_imports)]

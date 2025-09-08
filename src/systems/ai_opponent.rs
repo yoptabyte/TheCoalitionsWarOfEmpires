@@ -231,8 +231,8 @@ fn simple_spawn_ai_unit(
             let (model_path, scale) = match faction {
                 Faction::Entente => {
                     match tank_type_index {
-                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.1), // tsar_tank уменьшен в 4 раза
-                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 уменьшен в 5 раз
+                        0 => ("models/entente/tanks/tsar_tank.glb#Scene0", 0.1), // tsar_tank возвращаем исходный размер
+                        1 => ("models/entente/tanks/mark1.glb#Scene0", 0.08), // mark1 возвращаем исходный размер
                         _ => ("models/entente/tanks/renault_ft17.glb#Scene0", 0.4), // renault остается нормальным
                     }
                 },
@@ -784,8 +784,12 @@ pub fn ai_movement_system(
 pub fn ai_combat_system(
     turn_state: Res<TurnState>,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     mut ai_units: Query<(Entity, &Transform, &mut CanShoot), (With<Enemy>, Without<crate::game::ForestFarm>, Without<crate::game::Mine>, Without<crate::game::SteelFactory>, Without<crate::game::PetrochemicalPlant>)>,
     mut player_units: Query<(Entity, &Transform, &mut Health), Without<Enemy>>, // Атакуем ВСЕ цели игрока включая здания
+    tank_query: Query<Entity, With<crate::game::Tank>>,
+    aircraft_query: Query<Entity, With<crate::game::Aircraft>>,
+    infantry_query: Query<Entity, With<crate::game::units::infantry::Infantry>>,
     mut commands: Commands,
 ) {
     // ИИ атакует только в свой ход
@@ -850,6 +854,23 @@ pub fn ai_combat_system(
                 // Атакуем
                 target_health.current -= can_shoot.damage;
                 can_shoot.last_shot = current_time;
+                
+                // Воспроизводим звук стрельбы ИИ
+                let audio_source = if tank_query.get(ready_ai_entity).is_ok() {
+                    asset_server.load("audio/tank_shot.mp3")
+                } else if aircraft_query.get(ready_ai_entity).is_ok() {
+                    asset_server.load("audio/aircraft_gun.mp3")  
+                } else if infantry_query.get(ready_ai_entity).is_ok() {
+                    asset_server.load("audio/infantry_shot.ogg")
+                } else {
+                    asset_server.load("audio/gun.mp3")
+                };
+
+                info!("🔫 AI unit shooting from {:?}", ai_pos);
+                commands.spawn(AudioBundle {
+                    source: audio_source,
+                    settings: PlaybackSettings::ONCE,
+                });
                 
                 info!("AI unit attacked player unit for {} damage!", can_shoot.damage);
                 

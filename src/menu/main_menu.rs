@@ -669,6 +669,7 @@ pub fn faction_selection_system(
             info!("AI faction set to: {:?}", ai_faction.0);
 
             // When a faction is selected, transition to game state
+            println!("🎮 TRANSITIONING TO GAME STATE! Player: {:?}, AI: {:?}", faction, ai_faction.0);
             menu_state.set(MenuState::Disabled);
             game_state.set(GameState::Game);
         }
