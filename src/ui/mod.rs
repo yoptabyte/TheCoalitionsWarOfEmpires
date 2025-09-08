@@ -96,6 +96,7 @@ pub fn ui_plugin(app: &mut App) {
             // Системы выделения врагов и игроков
             enemy_highlighting::highlight_enemy_entities,
             enemy_highlighting::highlight_player_entities,
+            enemy_highlighting::highlight_primitive_player_entities,
         ).run_if(in_state(GameState::Game))
     );
 }

@@ -90,9 +90,9 @@ pub fn highlight_player_entities(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     // Запрос для игровых юнитов
-    tank_query: Query<(Entity, &Children), (With<crate::game::components::Tank>, Without<crate::game::Enemy>, Added<Children>)>,
+    tank_query: Query<(Entity, &Children), (With<crate::game::Tank>, Without<crate::game::Enemy>, Added<Children>)>,
     infantry_query: Query<(Entity, &Children), (With<crate::game::units::infantry::Infantry>, Without<crate::game::Enemy>, Added<Children>)>,
-    aircraft_query: Query<(Entity, &Children), (With<crate::game::components::Aircraft>, Without<crate::game::Enemy>, Added<Children>)>,
+    aircraft_query: Query<(Entity, &Children), (With<crate::game::Aircraft>, Without<crate::game::Enemy>, Added<Children>)>,
     // Запрос для mesh-ей с материалами
     mesh_query: Query<(Entity, &Handle<StandardMaterial>), With<Handle<Mesh>>>,
     // Маркер для уже обработанных entities
@@ -180,6 +180,87 @@ fn highlight_player_entity_children(
                 PlayerHighlighted,
             ));
         }
+    }
+}
+
+/// Система для визуального выделения примитивных (non-3D модели) игровых юнитов
+pub fn highlight_primitive_player_entities(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    // Запрос для примитивных игровых юнитов
+    tank_query: Query<(Entity, &Handle<StandardMaterial>), (With<crate::game::Tank>, Without<crate::game::Enemy>, Added<crate::game::Tank>)>,
+    infantry_query: Query<(Entity, &Handle<StandardMaterial>), (With<crate::game::units::infantry::Infantry>, Without<crate::game::Enemy>, Added<crate::game::units::infantry::Infantry>)>,
+    aircraft_query: Query<(Entity, &Handle<StandardMaterial>), (With<crate::game::Aircraft>, Without<crate::game::Enemy>, Added<crate::game::Aircraft>)>,
+    // Маркер для уже обработанных entities
+    highlighted_query: Query<&PlayerHighlighted>,
+) {
+    // Обрабатываем примитивные танки игрока
+    for (tank_entity, material_handle) in tank_query.iter() {
+        if highlighted_query.get(tank_entity).is_ok() {
+            continue;
+        }
+        
+        info!("Highlighting primitive Player Tank entity {}", tank_entity.index());
+        
+        let new_material = StandardMaterial {
+            base_color: Color::rgb(0.2, 0.7, 0.3), // Зеленый для танков игрока
+            metallic: 0.2,
+            perceptual_roughness: 0.6,
+            ..default()
+        };
+        
+        let new_material_handle = materials.add(new_material);
+        
+        commands.entity(tank_entity).insert((
+            new_material_handle,
+            PlayerHighlighted,
+        ));
+    }
+    
+    // Обрабатываем примитивную пехоту игрока
+    for (infantry_entity, material_handle) in infantry_query.iter() {
+        if highlighted_query.get(infantry_entity).is_ok() {
+            continue;
+        }
+        
+        info!("Highlighting primitive Player Infantry entity {}", infantry_entity.index());
+        
+        let new_material = StandardMaterial {
+            base_color: Color::rgb(0.3, 0.6, 0.4), // Темно-зеленый для пехоты игрока
+            metallic: 0.2,
+            perceptual_roughness: 0.6,
+            ..default()
+        };
+        
+        let new_material_handle = materials.add(new_material);
+        
+        commands.entity(infantry_entity).insert((
+            new_material_handle,
+            PlayerHighlighted,
+        ));
+    }
+    
+    // Обрабатываем примитивную авиацию игрока
+    for (aircraft_entity, material_handle) in aircraft_query.iter() {
+        if highlighted_query.get(aircraft_entity).is_ok() {
+            continue;
+        }
+        
+        info!("Highlighting primitive Player Aircraft entity {}", aircraft_entity.index());
+        
+        let new_material = StandardMaterial {
+            base_color: Color::rgb(0.1, 0.8, 0.2), // Яркий зеленый для авиации игрока
+            metallic: 0.2,
+            perceptual_roughness: 0.6,
+            ..default()
+        };
+        
+        let new_material_handle = materials.add(new_material);
+        
+        commands.entity(aircraft_entity).insert((
+            new_material_handle,
+            PlayerHighlighted,
+        ));
     }
 }
 

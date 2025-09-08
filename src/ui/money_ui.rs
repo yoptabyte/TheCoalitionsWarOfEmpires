@@ -1136,6 +1136,7 @@ pub fn place_shape(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &AssetServer,
     player_faction: &Res<crate::game::units::PlayerFaction>,
+    unit_type_index: Option<usize>,
 ) {
     info!("🔥🔥🔥 place_shape: FUNCTION CALLED!!! shape_type {:?} at position {:?} faction {:?}", shape_type, position, player_faction.0);
     use crate::game::components::*;
@@ -1172,9 +1173,9 @@ pub fn place_shape(
         },
         ShapeType::Cube => {
             use crate::menu::main_menu::Faction;
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let tank_type_index = rng.gen_range(0..3);
+            
+            // Use the specific unit type index if provided, otherwise default to 0
+            let tank_type_index = unit_type_index.unwrap_or(0);
             
             let (model_path, scale) = match player_faction.0 {
                 Faction::Entente => {
@@ -1192,6 +1193,9 @@ pub fn place_shape(
                     }
                 },
             };
+            
+            // Адаптируем размер коллайдера под масштаб модели, но с минимальным размером
+            let collider_size = (5.0_f32 * scale).max(1.5); // Минимум 1.5 для кликабельности
             
             info!("🔥 TANK: Loading model from path: {} with scale: {}", model_path, scale);
             let entity_id = commands.spawn((
@@ -1215,7 +1219,7 @@ pub fn place_shape(
                     damage: 10.0,
                 },
                 RigidBody::Dynamic,
-                Collider::cuboid(5.0, 5.0, 5.0), // Очень большой коллайдер для танков
+                Collider::cuboid(collider_size, collider_size, collider_size), // Пропорциональный коллайдер
                 Sensor, // Невидимый коллайдер для кликов
                 LockedAxes::ROTATION_LOCKED | LockedAxes::TRANSLATION_LOCKED_Y,
                 Restitution::coefficient(0.0),
@@ -1223,13 +1227,13 @@ pub fn place_shape(
                 bevy_mod_picking::prelude::PickableBundle::default(),
                 Name::new("Player Tank"),
             )).id();
-            info!("🔥 TANK SPAWNED: Entity {:?} at position {:?} with Selectable component", entity_id, position);
+            info!("🔥 TANK SPAWNED: Entity {:?} at position {:?} with scale {} and collider size {}", entity_id, position, scale, collider_size);
         },
         ShapeType::Airplane => {
             use crate::menu::main_menu::Faction;
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let aircraft_type_index = rng.gen_range(0..3);
+            
+            // Use the specific unit type index if provided, otherwise default to 0
+            let aircraft_type_index = unit_type_index.unwrap_or(0);
             
             let model_path = match player_faction.0 {
                 Faction::Entente => {
@@ -1261,6 +1265,7 @@ pub fn place_shape(
                     height: 10.0,
                     speed: 5.0,
                 },
+                crate::game::components::MovementOrder(Vec3::ZERO),
                 crate::game::components::Health {
                     current: 75.0,
                     max: 75.0,
@@ -1285,9 +1290,9 @@ pub fn place_shape(
             use crate::game::units::infantry::{InfantryType, EntenteInfantryType, CentralPowersInfantryType, Infantry, InfantryAttributes};
             use crate::game::components::{Health, CanShoot, Selectable, HoveredOutline};
             use bevy_rapier3d::prelude::*;
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let infantry_type_index = rng.gen_range(0..3);
+            
+            // Use the specific unit type index if provided, otherwise default to 0
+            let infantry_type_index = unit_type_index.unwrap_or(0);
             
             let infantry_type = match player_faction.0 {
                 Faction::Entente => {

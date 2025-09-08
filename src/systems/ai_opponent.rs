@@ -340,6 +340,7 @@ fn simple_spawn_ai_unit(
                 ShapeType::Airplane,
                 Enemy,
                 crate::game::Aircraft { height: 10.0, speed: 5.0 },
+                MovementOrder(Vec3::ZERO),
                 Health { current: 75.0, max: 75.0 },
                 CanShoot {
                     cooldown: 0.6,
@@ -412,9 +413,6 @@ fn simple_spawn_ai_unit(
                 PickableBundle::default(),
                 Name::new("AI Petrochemical Plant - FIXED"),
             ));
-        }
-        _ => {
-            info!("AI tried to build unsupported item: {:?}", item);
         }
     }
 }
@@ -571,6 +569,7 @@ fn spawn_ai_unit(
                 ShapeType::Airplane,
                 Enemy,
                 crate::game::Aircraft { height: 10.0, speed: 5.0 },
+                MovementOrder(Vec3::ZERO),
                 Health { current: 75.0, max: 75.0 },
                 CanShoot {
                     cooldown: 0.6,
@@ -642,10 +641,6 @@ fn spawn_ai_unit(
                 PickableBundle::default(),
                 Name::new("AI Petrochemical Plant - FIXED"),
             ));
-        }
-        // Другие предметы не обрабатываем
-        _ => {
-            info!("AI tried to build unsupported item: {:?}", item);
         }
     }
 }

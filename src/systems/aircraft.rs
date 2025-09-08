@@ -1,27 +1,48 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+use bevy_mod_picking::prelude::*;
 use crate::game::components::{Aircraft, MovementOrder, Selectable, CanShoot};
 
 pub fn aircraft_movement(
+    mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &Aircraft, &MovementOrder)>,
+    mut query: Query<(Entity, &mut Transform, &Aircraft, &MovementOrder)>,
 ) {
-    for (mut transform, aircraft, movement_order) in query.iter_mut() {
+    for (entity, mut transform, aircraft, movement_order) in query.iter_mut() {
         let target_position = movement_order.0;
         let current_position = transform.translation;
         
-        // Calculate direction to target
-        let direction = (target_position - current_position).normalize();
+        // Skip movement if target is zero (no movement order)
+        if target_position == Vec3::ZERO {
+            continue;
+        }
         
-        // Move the aircraft
-        let movement = direction * aircraft.speed * time.delta_seconds();
-        transform.translation += movement;
+        // Calculate direction to target (only in XZ plane for aircraft)
+        let direction_3d = target_position - current_position;
+        let direction_xz = Vec3::new(direction_3d.x, 0.0, direction_3d.z);
         
-        // Keep the aircraft at the specified height
-        transform.translation.y = aircraft.height;
+        // Check if we've reached the target (within 1.0 unit distance)
+        if direction_xz.length_squared() <= 1.0 {
+            // Reached target, remove movement order
+            commands.entity(entity).remove::<MovementOrder>();
+            info!("Aircraft {:?} reached target at {:?}", entity, target_position);
+            continue;
+        }
         
-        // Rotate the aircraft to face the movement direction
-        if direction.length_squared() > 0.0 {
-            let rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
+        // Only proceed with movement and rotation if we have a valid direction
+        if direction_xz.length_squared() > 0.01 {
+            // Normalize direction for movement
+            let normalized_direction = direction_xz.normalize();
+            
+            // Move the aircraft
+            let movement = normalized_direction * aircraft.speed * time.delta_seconds();
+            transform.translation += movement;
+            
+            // Keep the aircraft at the specified height
+            transform.translation.y = aircraft.height;
+            
+            // Rotate the aircraft to face the movement direction
+            let rotation = Quat::from_rotation_y(normalized_direction.x.atan2(normalized_direction.z));
             transform.rotation = rotation;
         }
     }
@@ -54,5 +75,10 @@ pub fn spawn_initial_aircraft(
             range: 20.0,
             damage: 15.0,
         },
+        // Добавляем коллайдер и picking для кликабельности
+        Collider::cuboid(7.0, 4.0, 8.0),
+        Sensor,
+        PickableBundle::default(),
+        Name::new("Initial Aircraft"),
     ));
 } 

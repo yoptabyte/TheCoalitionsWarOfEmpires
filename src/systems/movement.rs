@@ -4,7 +4,7 @@ use bevy::prelude::*;
 /// processing movement orders
 pub fn process_movement_orders(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Transform, &MovementOrder)>,
+    mut query: Query<(Entity, &mut Transform, &MovementOrder), Without<crate::game::components::Aircraft>>,
     time: Res<Time>,
 ) {
     for (entity, mut transform, movement_order) in query.iter_mut() {

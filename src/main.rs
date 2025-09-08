@@ -13,7 +13,7 @@ mod ui;
 mod utils;
 
 use game::*;
-use input::selection::{ProcessedClicks, handle_enemy_clicks, select_entity_system, handle_ground_clicks, handle_placement_clicks, debug_all_clicks, raycast_unit_selection};
+use input::selection::{ProcessedClicks, handle_enemy_clicks, select_entity_system, handle_ground_clicks, handle_placement_clicks, debug_all_clicks, raycast_unit_selection, deselect_on_right_click};
 use input::*;
 use menu::common::{DisplayQuality, GameState, Volume};
 use systems::*;
@@ -100,7 +100,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            (debug_all_clicks, select_entity_system, handle_enemy_clicks, raycast_unit_selection).run_if(in_state(GameState::Game)),
+            (debug_all_clicks, handle_enemy_clicks, raycast_unit_selection, deselect_on_right_click).run_if(in_state(GameState::Game)),
         )
         .add_systems(
             Update,
@@ -119,6 +119,9 @@ fn main() {
             (
                 game::scene_colliders::add_enemy_scene_colliders,
                 game::scene_colliders::add_enemy_deep_scene_colliders,
+                game::scene_colliders::add_player_unit_scene_colliders,
+                game::scene_colliders::add_parent_unit_colliders,
+                game::scene_colliders::add_precise_player_unit_colliders,
                 game::scene_colliders::handle_child_clicks,
                 game::scene_colliders::handle_child_hover,
             ).run_if(in_state(GameState::Game)),
@@ -200,6 +203,7 @@ fn setup_ui_camera(mut commands: Commands) {
 fn reset_placement_state(mut placement_state: ResMut<PlacementState>) {
     placement_state.active = false;
     placement_state.shape_type = None;
+    placement_state.unit_type_index = None;
 }
 
 fn reset_game_state(

@@ -45,6 +45,9 @@ pub fn raycast_unit_selection(
     query_selectable: Query<(), (With<Selectable>, Without<Enemy>, Without<EnemyTower>)>,
     turn_state: Res<TurnState>,
     mut camera_movement_state: ResMut<crate::game::CameraMovementState>,
+    // Добавляем отладочные запросы
+    debug_query: Query<(Option<&Selectable>, Option<&Tank>, Option<&Aircraft>, Option<&Name>)>,
+    child_query: Query<&crate::game::scene_colliders::ChildOfClickable>,
 ) {
     if turn_state.current_player != PlayerTurn::Human {
         return;
@@ -61,29 +64,39 @@ pub fn raycast_unit_selection(
                 if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
                     info!("🔥 RAYCAST: Created ray from {:?} in direction {:?}", ray.origin, ray.direction);
                     
-                    // Perform raycast
-                    let hit = rapier_context.cast_ray(
+                    // Perform raycast to get ALL hits
+                    rapier_context.intersections_with_ray(
                         ray.origin,
                         *ray.direction,
                         f32::MAX,
                         true,
-                        QueryFilter::default()
-                    );
-                    
-                    if let Some((entity, _toi)) = hit {
-                        info!("🔥 RAYCAST: Hit entity {:?}", entity);
-                        
-                        // Check if the hit entity is selectable
-                        if query_selectable.get(entity).is_ok() {
-                            info!("🔥 RAYCAST: ✅ Entity {:?} is selectable! Selecting it.", entity);
-                            selected_entity.0 = Some(entity);
-                            camera_movement_state.manual_camera_mode = false;
-                        } else {
-                            info!("🔥 RAYCAST: ❌ Entity {:?} is not selectable", entity);
+                        QueryFilter::default(),
+                        |entity, _intersection| {
+                            info!("🔥 RAYCAST: Hit entity {:?}", entity);
+                            
+                            // Check if this entity is selectable (our units)
+                            if query_selectable.get(entity).is_ok() {
+                                info!("🔥 RAYCAST: ✅ Entity {:?} is selectable! Selecting it.", entity);
+                                selected_entity.0 = Some(entity);
+                                camera_movement_state.manual_camera_mode = false;
+                                return false; // Stop at first selectable hit
+                            }
+                            
+                            // Check if it's a child that can be redirected to selectable parent
+                            if let Ok(child_of_clickable) = child_query.get(entity) {
+                                info!("🔥 RAYCAST DEBUG: Entity {:?} is child of {:?}", entity, child_of_clickable.parent);
+                                if query_selectable.get(child_of_clickable.parent).is_ok() {
+                                    info!("🔥 RAYCAST: ✅ Parent entity {:?} is selectable! Selecting it.", child_of_clickable.parent);
+                                    selected_entity.0 = Some(child_of_clickable.parent);
+                                    camera_movement_state.manual_camera_mode = false;
+                                    return false; // Stop at first selectable parent
+                                }
+                            }
+                            
+                            // Continue raycast through this entity
+                            true
                         }
-                    } else {
-                        info!("🔥 RAYCAST: No entity hit");
-                    }
+                    );
                 } else {
                     info!("🔥 RAYCAST: Could not create ray from cursor position");
                 }
@@ -156,10 +169,9 @@ pub fn select_entity_system(
         if is_selectable {
             info!("select_entity_system: ✅ Clicked on selectable object {:?}, previously selected: {:?}", target_entity, selected_entity.0);
             
-            if selected_entity.0 != Some(target_entity) {
-                selected_entity.0 = Some(target_entity);
-                camera_movement_state.manual_camera_mode = false;
-            }
+            // Всегда выделяем кликнутый юнит (позволяет переключаться между юнитами)
+            selected_entity.0 = Some(target_entity);
+            camera_movement_state.manual_camera_mode = false;
             
             return;
         }
@@ -259,6 +271,17 @@ pub fn update_mouse_world_position(
     // If we couldn't get a valid position, don't change the existing one
 }
 
+/// Система для сброса выделения по правому клику мыши
+pub fn deselect_on_right_click(
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut selected_entity: ResMut<SelectedEntity>,
+) {
+    if mouse_button_input.just_pressed(MouseButton::Right) && selected_entity.0.is_some() {
+        info!("🚫 Сбрасываем выделение юнита {:?} по правому клику", selected_entity.0);
+        selected_entity.0 = None;
+    }
+}
+
 /// processing ground clicks for moving existing objects
 pub fn handle_ground_clicks(
     mut commands: Commands,
@@ -321,6 +344,13 @@ pub fn handle_ground_clicks(
                 info!("handle_ground_clicks: Entity {:?} no longer exists, cannot move", entity_to_move);
             }
         }
+    }
+    
+    // Добавляем логику для сброса выделения при правом клике по земле
+    // Или двойном клике по земле без выбранного юнита
+    if clicked_on_ground {
+        // Можно добавить сброс выделения по Ctrl+клик или правому клику
+        // Пока оставляем как есть, чтобы не мешать движению
     }
 }
 
@@ -390,12 +420,14 @@ pub fn handle_placement_clicks(
             &mut materials,
             &asset_server,
             &player_faction,
+            placement_state.unit_type_index,
         );
         info!("🔥 place_shape call completed!");
         
         // Reset placement mode after successful spawn
         placement_state.active = false;
         placement_state.shape_type = None;
+        placement_state.unit_type_index = None;
         
         /*
         OLD PRIMITIVE CREATION CODE REMOVED - was creating Cuboid/Sphere primitives instead of 3D models

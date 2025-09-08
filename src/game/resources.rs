@@ -48,6 +48,8 @@ pub struct PlacementState {
     pub shape_type: Option<ShapeType>,
     /// Flag indicating that placement mode is active
     pub active: bool,
+    /// Index of specific unit type (0, 1, 2 for different variants of the same unit type)
+    pub unit_type_index: Option<usize>,
 }
 
 impl Default for FarmIncomeTimer {

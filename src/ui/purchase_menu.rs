@@ -653,23 +653,29 @@ pub fn handle_unit_purchase(
                 placement_state.active = true;
                 
                 match button_type {
-                    UnitPurchaseButton::Infantry(_) => {
+                    UnitPurchaseButton::Infantry(unit_index) => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::Infantry);
+                        placement_state.unit_type_index = Some(*unit_index);
                     },
-                    UnitPurchaseButton::Tank(_) => {
+                    UnitPurchaseButton::Tank(unit_index) => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::Cube);
+                        placement_state.unit_type_index = Some(*unit_index);
                     },
-                    UnitPurchaseButton::Aircraft(_) => {
+                    UnitPurchaseButton::Aircraft(unit_index) => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::Airplane);
+                        placement_state.unit_type_index = Some(*unit_index);
                     },
                     UnitPurchaseButton::Mine => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::Mine);
+                        placement_state.unit_type_index = None;
                     },
                     UnitPurchaseButton::SteelFactory => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::SteelFactory);
+                        placement_state.unit_type_index = None;
                     },
                     UnitPurchaseButton::PetrochemicalPlant => {
                         placement_state.shape_type = Some(crate::game::components::ShapeType::PetrochemicalPlant);
+                        placement_state.unit_type_index = None;
                     },
                 }
                 

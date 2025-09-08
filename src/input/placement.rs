@@ -97,6 +97,7 @@ pub fn handle_placement_clicks(
                     &mut materials,
                     &asset_server,
                     &player_faction,
+                    placement_state.unit_type_index,
                 );
                 
                 // Update click circle display information
@@ -106,6 +107,7 @@ pub fn handle_placement_clicks(
                 // Reset placement state
                 placement_state.active = false;
                 placement_state.shape_type = None;
+                placement_state.unit_type_index = None;
                 
                 info!("handle_placement_clicks: PlacementState object placed successfully, placement mode deactivated");
                 return; // Exit since purchase has been handled
@@ -152,6 +154,7 @@ pub fn handle_placement_clicks(
                     &mut materials,
                     &asset_server,
                     &player_faction,
+                    None, // Old system doesn't have unit_type_index, so use default (0)
                 );
                 
                 // Update click circle display information
