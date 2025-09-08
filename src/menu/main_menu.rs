@@ -29,6 +29,9 @@ pub struct LogoContainer;
 #[derive(Component)]
 pub struct ButtonContainer;
 
+#[derive(Component)]
+pub struct TwitterButton;
+
 #[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub enum MenuAnimationState {
     #[default]
@@ -312,6 +315,39 @@ pub fn main_menu_setup(
                                 },
                             ));
                         });
+                });
+
+            // Twitter button in bottom-right corner
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Px(60.0),
+                            height: Val::Px(60.0),
+                            position_type: PositionType::Absolute,
+                            bottom: Val::Px(20.0),
+                            right: Val::Px(20.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            border: UiRect::all(Val::Px(2.0)),
+                            ..default()
+                        },
+                        background_color: Color::rgba(0.1, 0.1, 0.1, 0.8).into(),
+                        border_color: Color::rgba(0.3, 0.3, 0.3, 0.8).into(),
+                        ..default()
+                    },
+                    TwitterButton,
+                ))
+                .with_children(|parent| {
+                    parent.spawn(ImageBundle {
+                        style: Style {
+                            width: Val::Px(40.0),
+                            height: Val::Px(40.0),
+                            ..default()
+                        },
+                        image: UiImage::new(asset_server.load("pic/x_logo.png")),
+                        ..default()
+                    });
                 });
         });
 }
@@ -639,6 +675,36 @@ pub fn faction_selection_system(
     }
 }
 
+// System to handle Twitter button click
+pub fn twitter_button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &mut BorderColor),
+        (Changed<Interaction>, With<Button>, With<TwitterButton>),
+    >,
+) {
+    for (interaction, mut background_color, mut border_color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                info!("Twitter button clicked! Opening Twitter post...");
+                // Open the Twitter URL
+                if let Err(e) = webbrowser::open("https://x.com/yoptabyte/status/1933578469319086430") {
+                    error!("Failed to open Twitter URL: {}", e);
+                }
+                *background_color = Color::rgba(0.2, 0.2, 0.2, 0.9).into();
+                *border_color = Color::rgba(0.5, 0.5, 0.5, 1.0).into();
+            }
+            Interaction::Hovered => {
+                *background_color = Color::rgba(0.15, 0.15, 0.15, 0.9).into();
+                *border_color = Color::rgba(0.4, 0.4, 0.4, 1.0).into();
+            }
+            Interaction::None => {
+                *background_color = Color::rgba(0.1, 0.1, 0.1, 0.8).into();
+                *border_color = Color::rgba(0.3, 0.3, 0.3, 0.8).into();
+            }
+        }
+    }
+}
+
 pub fn main_menu_plugin(app: &mut App) {
     app.init_state::<MenuAnimationState>()
         .insert_resource(AnimationTimer {
@@ -658,7 +724,7 @@ pub fn main_menu_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            (faction_hover_system, faction_selection_system).run_if(in_state(MenuState::Main)),
+            (faction_hover_system, faction_selection_system, twitter_button_system).run_if(in_state(MenuState::Main)),
         )
         .add_systems(OnExit(MenuState::Main), despawn_main_menu);
 }

@@ -14,6 +14,11 @@ pub struct NotificationState {
     pub mine_notified: bool,
     pub steel_factory_notified: bool,
     pub petrochemical_plant_notified: bool,
+    // New tutorial notifications
+    pub farm_tutorial_shown: bool,
+    pub enemy_unit_tutorial_shown: bool,
+    pub enemy_farm_tutorial_shown: bool,
+    pub tower_tutorial_shown: bool,
 }
 
 // Component for blinking animations
@@ -144,7 +149,7 @@ pub fn spawn_purchase_notification(
                     "Click to open purchase menu",
                     TextStyle {
                         font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                        font_size: 14.0,
+                        font_size: 18.0,
                         color: Color::WHITE,
                     },
                 ),
@@ -185,7 +190,7 @@ pub fn spawn_infantry_notification(
                     "Infantry: Weakest and cheapest military units.\nGood for basic defense and scouting.\n\nTo purchase: Click on infantry button, then click\non the game field to spawn the unit.",
                     TextStyle {
                         font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
-                        font_size: 14.0,
+                        font_size: 18.0,
                         color: Color::WHITE,
                     },
                 ),
@@ -200,12 +205,43 @@ pub fn cleanup_notifications(
     mut commands: Commands,
     notification_query: Query<Entity, With<NotificationPopup>>,
     notification_state: Res<NotificationState>,
+    time: Res<Time>,
 ) {
-    for entity in &notification_query {
-        // Remove purchase menu notification when menu is opened
-        if notification_state.purchase_menu_opened {
-            commands.entity(entity).despawn_recursive();
+    // Auto-remove tutorial notifications after 8 seconds
+    static mut NOTIFICATION_SPAWN_TIMES: Vec<(Entity, f32)> = Vec::new();
+    
+    unsafe {
+        // Track when notifications were spawned
+        for entity in &notification_query {
+            let current_time = time.elapsed_seconds();
+            
+            // Check if this entity is already tracked
+            let mut found = false;
+            for (tracked_entity, _) in &NOTIFICATION_SPAWN_TIMES {
+                if *tracked_entity == entity {
+                    found = true;
+                    break;
+                }
+            }
+            
+            // If not tracked, add it with current time
+            if !found {
+                NOTIFICATION_SPAWN_TIMES.push((entity, current_time));
+            }
         }
+        
+        // Remove notifications that are older than 8 seconds
+        NOTIFICATION_SPAWN_TIMES.retain(|(entity, spawn_time)| {
+            let current_time = time.elapsed_seconds();
+            if current_time - spawn_time > 8.0 {
+                if let Some(entity_commands) = commands.get_entity(*entity) {
+                    entity_commands.despawn_recursive();
+                }
+                false // Remove from tracking
+            } else {
+                true // Keep in tracking
+            }
+        });
     }
 }
 
@@ -557,6 +593,182 @@ fn get_building_stats(building_type: BuildingType) -> (String, String) {
     }
 }
 
+// System to show farm tutorial when purchase menu is first opened
+pub fn spawn_farm_tutorial_notification(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut notification_state: ResMut<NotificationState>,
+) {
+    if notification_state.purchase_menu_opened && !notification_state.farm_tutorial_shown {
+        notification_state.farm_tutorial_shown = true;
+        
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(50.0),
+                    top: Val::Px(150.0),
+                    width: Val::Px(400.0),
+                    height: Val::Px(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::rgba(0.1, 0.3, 0.1, 0.95).into(),
+                ..default()
+            },
+            NotificationPopup,
+            OnGameScreen,
+        )).with_children(|parent| {
+            parent.spawn((
+                TextBundle::from_section(
+                    "💡 TUTORIAL: Farms are essential for resource production!\nBuild farms to generate wood and money.\nWithout resources, you cannot produce tanks and aircraft.\nClick on farm buildings to construct them.",
+                    TextStyle {
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                        font_size: 18.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                NotificationText,
+            ));
+        });
+    }
+}
+
+// System to show enemy unit tutorial when enemy first spawns a unit
+pub fn spawn_enemy_unit_tutorial_notification(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut notification_state: ResMut<NotificationState>,
+    enemy_units: Query<Entity, (With<crate::game::Enemy>, With<crate::game::ShapeType>)>,
+) {
+    if !notification_state.enemy_unit_tutorial_shown && !enemy_units.is_empty() {
+        notification_state.enemy_unit_tutorial_shown = true;
+        
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(50.0),
+                    top: Val::Px(200.0),
+                    width: Val::Px(400.0),
+                    height: Val::Px(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::rgba(0.3, 0.1, 0.1, 0.95).into(),
+                ..default()
+            },
+            NotificationPopup,
+            OnGameScreen,
+        )).with_children(|parent| {
+            parent.spawn((
+                TextBundle::from_section(
+                    "⚔️ COMBAT TUTORIAL: Enemy units detected!\nTo attack enemy units, move your units close to them\nand click on the enemy unit to deal damage.\nDestroy all enemy units and towers to win!",
+                    TextStyle {
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                        font_size: 18.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                NotificationText,
+            ));
+        });
+    }
+}
+
+// System to show enemy farm tutorial when enemy first builds a farm
+pub fn spawn_enemy_farm_tutorial_notification(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut notification_state: ResMut<NotificationState>,
+    enemy_farms: Query<Entity, (With<crate::game::Enemy>, With<crate::game::ForestFarm>)>,
+) {
+    if !notification_state.enemy_farm_tutorial_shown && !enemy_farms.is_empty() {
+        notification_state.enemy_farm_tutorial_shown = true;
+        
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(50.0),
+                    top: Val::Px(250.0),
+                    width: Val::Px(400.0),
+                    height: Val::Px(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::rgba(0.3, 0.3, 0.1, 0.95).into(),
+                ..default()
+            },
+            NotificationPopup,
+            OnGameScreen,
+        )).with_children(|parent| {
+            parent.spawn((
+                TextBundle::from_section(
+                    "🏭 ECONOMY WARFARE: Enemy farms spotted!\nDestroy enemy farms to cripple their economy!\nWithout farms, enemies cannot produce resources\nfor tanks and aircraft. Target their economy!",
+                    TextStyle {
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                        font_size: 18.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                NotificationText,
+            ));
+        });
+    }
+}
+
+// System to show tower tutorial at game start
+pub fn spawn_tower_tutorial_notification(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut notification_state: ResMut<NotificationState>,
+    time: Res<Time>,
+) {
+    // Show tower tutorial 5 seconds after game starts
+    if !notification_state.tower_tutorial_shown && time.elapsed_seconds() > 5.0 {
+        notification_state.tower_tutorial_shown = true;
+        
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(50.0),
+                    top: Val::Px(100.0),
+                    width: Val::Px(400.0),
+                    height: Val::Px(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::rgba(0.1, 0.1, 0.3, 0.95).into(),
+                ..default()
+            },
+            NotificationPopup,
+            OnGameScreen,
+        )).with_children(|parent| {
+            parent.spawn((
+                TextBundle::from_section(
+                    "🏰 VICTORY CONDITIONS: Protect your towers!\nDefend your 3 towers at all costs!\nDestroy all 3 enemy towers to achieve victory!\nFirst to destroy all enemy towers wins the war!",
+                    TextStyle {
+                        font: asset_server.load("fonts/GrenzeGotisch-Light.ttf"),
+                        font_size: 18.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                NotificationText,
+            ));
+        });
+    }
+}
+
 pub struct NotificationSystemPlugin;
 
 impl Plugin for NotificationSystemPlugin {
@@ -571,6 +783,11 @@ impl Plugin for NotificationSystemPlugin {
                 cleanup_notifications,
                 handle_infantry_interaction,
                 manage_unit_tooltips,
+                // New tutorial notification systems
+                spawn_farm_tutorial_notification,
+                spawn_enemy_unit_tutorial_notification,
+                spawn_enemy_farm_tutorial_notification,
+                spawn_tower_tutorial_notification,
             ).run_if(in_state(crate::menu::common::GameState::Game)));
     }
 }
